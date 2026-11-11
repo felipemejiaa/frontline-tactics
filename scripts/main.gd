@@ -11,8 +11,10 @@ enum Estado { LIBRE, SELECCIONADA, MOVIENDO }
 @onready var resaltado: Resaltado = $GameMap/Resaltado
 @onready var etiqueta_turno: Label = $HUD/EtiquetaTurno
 @onready var boton_terminar: Button = $HUD/BotonTerminar
+@onready var ia: IA = $IA
 
 var estado := Estado.LIBRE
+var turno_ia := false  # mientras juega la máquina se ignoran los toques
 var equipo_actual := "azul"
 var seleccionada: Unidad = null
 var alcance := {}
@@ -47,6 +49,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func tocar_celda(celda: Vector2i) -> void:
+	if turno_ia:
+		return
 	match estado:
 		Estado.MOVIENDO:
 			return
@@ -108,16 +112,24 @@ func mover(u: Unidad, destino: Vector2i) -> void:
 
 # ---------------------------------------------------------------- turnos (TEMPORAL)
 
-## TEMPORAL para poder probar el movimiento: cambia de equipo y reactiva las unidades.
-## Persona 1 lo reemplaza con el sistema de turnos real (créditos, IA, etc.).
+## TEMPORAL para poder probar: cambia de equipo, reactiva las unidades
+## y, si le toca a la máquina, juega la IA y devuelve el turno.
+## Persona 1 lo reemplaza con el sistema de turnos real (créditos, victoria, etc.).
 func terminar_turno() -> void:
-	if estado == Estado.MOVIENDO:
+	if estado == Estado.MOVIENDO or turno_ia:
 		return
 	deseleccionar()
 	equipo_actual = "rojo" if equipo_actual == "azul" else "azul"
 	for u in mapa.unidades_de(equipo_actual):
 		u.reiniciar_turno()
 	_actualizar_hud()
+	if equipo_actual == ia.equipo:
+		turno_ia = true
+		boton_terminar.disabled = true
+		await ia.jugar_turno()
+		turno_ia = false
+		boton_terminar.disabled = false
+		terminar_turno()
 
 
 func _actualizar_hud() -> void:

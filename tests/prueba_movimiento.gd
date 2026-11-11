@@ -82,8 +82,12 @@ func _initialize() -> void:
 	main.deseleccionar()
 
 	main.terminar_turno()
-	revisar(main.equipo_actual == "rojo", "terminar turno pasa al rojo")
-	main.terminar_turno()
+	revisar(main.equipo_actual == "rojo" and main.turno_ia, "terminar turno pasa a la máquina")
+	main.tocar_celda(Vector2i(4, 5))
+	revisar(main.seleccionada == null, "durante el turno de la máquina se ignoran los toques")
+	while main.turno_ia:
+		await process_frame
+	revisar(main.equipo_actual == "azul", "después de la IA vuelve el turno al azul")
 	revisar(not inf.ya_se_movio, "al volver el turno la unidad se puede mover otra vez")
 
 	print("\n%s" % ("TODO BIEN" if fallos == 0 else "%d FALLAS" % fallos))

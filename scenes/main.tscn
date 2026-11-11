@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/game_map.gd" id="2_map"]
 [ext_resource type="Script" path="res://scripts/resaltado.gd" id="3_res"]
+[ext_resource type="Script" path="res://scripts/ia.gd" id="4_ia"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -13,6 +14,9 @@ script = ExtResource("2_map")
 
 [node name="Resaltado" type="Node2D" parent="GameMap"]
 script = ExtResource("3_res")
+
+[node name="IA" type="Node" parent="."]
+script = ExtResource("4_ia")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
