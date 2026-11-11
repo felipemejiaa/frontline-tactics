@@ -14,6 +14,7 @@ func revisar(condicion: bool, mensaje: String) -> void:
 
 func _initialize() -> void:
 	var main: Node = load("res://scenes/main.tscn").instantiate()
+	main.modo_prueba = true
 	root.add_child(main)
 	await process_frame
 	var mapa: GameMap = main.mapa

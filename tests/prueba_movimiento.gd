@@ -15,12 +15,13 @@ func revisar(condicion: bool, mensaje: String) -> void:
 
 func _initialize() -> void:
 	var main: Node = load("res://scenes/main.tscn").instantiate()
+	main.modo_prueba = true
 	root.add_child(main)
 	await process_frame
 	var mapa: GameMap = main.mapa
 
 	print("Mapa")
-	for fila in GameMap.MAPA:
+	for fila in GameMap.MAPA_PRUEBA:
 		revisar(fila.length() == mapa.ancho, "fila de %d casillas" % fila.length())
 	revisar(mapa.buscar_edificio("cuartel", "azul") != Vector2i(-1, -1), "hay cuartel azul")
 	revisar(mapa.buscar_edificio("cuartel", "rojo") != Vector2i(-1, -1), "hay cuartel rojo")
@@ -36,7 +37,7 @@ func _initialize() -> void:
 	var montanas_ok := true
 	var rango_ok := true
 	for c in destinos:
-		if mapa.terreno_en(c) in ["montana", "agua"]:
+		if mapa.terreno_en(c) in ["montana", "agua", "bosque"]:
 			montanas_ok = false
 		if mapa.distancia(c, tanque.celda) > 5:
 			rango_ok = false
@@ -46,10 +47,13 @@ func _initialize() -> void:
 			gasto += tanque.datos()["costo_terreno"][mapa.terreno_en(paso)]
 		if gasto > 5:
 			rango_ok = false
-	revisar(montanas_ok, "el tanque no entra a montaña ni agua")
+	revisar(montanas_ok, "el tanque no entra a montaña, bosque ni agua")
 	revisar(rango_ok, "ningún camino gasta más de 5 de movimiento")
 
 	var inf: Unidad = mapa.unidad_en(Vector2i(2, 4))
+	var alc_i := mapa.calcular_alcance(inf)
+	revisar(Vector2i(3, 3) in alc_i["destinos"], "la infantería sí puede subir a la montaña")
+	revisar(Vector2i(4, 4) in alc_i["destinos"], "la infantería sí puede entrar al bosque")
 	var alc_inf := mapa.calcular_alcance(inf)
 	revisar(not (Vector2i(3, 2) in alc_inf["destinos"]), "no puede terminar encima de un aliado")
 

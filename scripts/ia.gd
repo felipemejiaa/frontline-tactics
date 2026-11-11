@@ -76,15 +76,20 @@ func _puntaje_ataque(u: Unidad, objetivo: Unidad, desde: Vector2i) -> float:
 
 
 ## Escoge la casilla alcanzable que queda más cerca (por camino real, no en línea recta)
-## de algún enemigo o, si es infantería, del cuartel enemigo.
+## de su objetivo:
+## - Infantería: edificios que no son suyos (ciudades para capturar y el cuartel enemigo).
+## - Tanques y artillería: unidades enemigas.
 func _mejor_acercamiento(u: Unidad, destinos: Array[Vector2i]) -> Vector2i:
 	var objetivos: Array[Vector2i] = []
-	for e in _enemigos_de(u):
-		objetivos.append(e.celda)
 	if u.tipo == "infanteria":
-		var cuartel := mapa.buscar_edificio("cuartel", _equipo_rival())
-		if cuartel.x >= 0:
-			objetivos.append(cuartel)
+		for c in mapa.duenos:
+			if mapa.dueno_en(c) != equipo and mapa.terreno_en(c) != "base":
+				var ocupante := mapa.unidad_en(c)
+				if ocupante == null or ocupante == u:
+					objetivos.append(c)
+	if objetivos.is_empty():
+		for e in _enemigos_de(u):
+			objetivos.append(e.celda)
 	if objetivos.is_empty():
 		return u.celda
 
