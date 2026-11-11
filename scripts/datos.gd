@@ -20,7 +20,12 @@ const TERRENOS := {
 		"adorno_azul": Vector2i(9, 2), "adorno_rojo": Vector2i(9, 3)},
 	"base": {"nombre": "Base", "defensa": 2, "tile": Vector2i(1, 0),
 		"adorno_azul": Vector2i(15, 2), "adorno_rojo": Vector2i(15, 3)},
+	"ciudad": {"nombre": "Ciudad", "defensa": 2, "tile": Vector2i(1, 0),
+		"adorno_neutral": Vector2i(8, 0), "adorno_azul": Vector2i(8, 2), "adorno_rojo": Vector2i(8, 3)},
 }
+
+## Créditos que da cada edificio propio (cuartel, base o ciudad) al empezar el turno.
+const INGRESO_POR_EDIFICIO := 1000
 
 ## Unidades. "costo_terreno": cuántos puntos de movimiento gasta entrar a cada terreno.
 ## -1 significa que no puede entrar.
@@ -34,7 +39,7 @@ const UNIDADES := {
 		"rango_min": 1,
 		"rango_max": 1,
 		"columna": 16,
-		"costo_terreno": {"llanura": 1, "bosque": 1, "montana": 2, "agua": -1, "cuartel": 1, "base": 1},
+		"costo_terreno": {"llanura": 1, "bosque": 2, "montana": 2, "agua": -1, "cuartel": 1, "base": 1, "ciudad": 1},
 	},
 	"tanque": {
 		"nombre": "Tanque",
@@ -44,7 +49,7 @@ const UNIDADES := {
 		"rango_min": 1,
 		"rango_max": 1,
 		"columna": 8,
-		"costo_terreno": {"llanura": 1, "bosque": 2, "montana": -1, "agua": -1, "cuartel": 1, "base": 1},
+		"costo_terreno": {"llanura": 1, "bosque": -1, "montana": -1, "agua": -1, "cuartel": 1, "base": 1, "ciudad": 1},
 	},
 	"artilleria": {
 		"nombre": "Artillería",
@@ -54,7 +59,7 @@ const UNIDADES := {
 		"rango_min": 2,
 		"rango_max": 3,
 		"columna": 9,
-		"costo_terreno": {"llanura": 1, "bosque": 2, "montana": -1, "agua": -1, "cuartel": 1, "base": 1},
+		"costo_terreno": {"llanura": 1, "bosque": -1, "montana": -1, "agua": -1, "cuartel": 1, "base": 1, "ciudad": 1},
 	},
 }
 

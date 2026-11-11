@@ -11,26 +11,65 @@ enum Estado { LIBRE, SELECCIONADA, MOVIENDO }
 @onready var resaltado: Resaltado = $GameMap/Resaltado
 @onready var etiqueta_turno: Label = $HUD/EtiquetaTurno
 @onready var boton_terminar: Button = $HUD/BotonTerminar
+@onready var ia: IA = $IA
+@onready var boton_nuevo_mapa: Button = $HUD/BotonNuevoMapa
+
+## Las pruebas automáticas lo ponen en true para usar siempre el mismo mapa.
+var modo_prueba := false
+## Semilla del mapa actual (sirve para repetir un mapa que salió bueno).
+var semilla := 0
 
 var estado := Estado.LIBRE
+var turno_ia := false  # mientras juega la máquina se ignoran los toques
 var equipo_actual := "azul"
 var seleccionada: Unidad = null
 var alcance := {}
 
 
 func _ready() -> void:
-	_colocar_ejercitos_iniciales()
 	boton_terminar.pressed.connect(terminar_turno)
-	_actualizar_hud()
+	boton_nuevo_mapa.pressed.connect(nuevo_mapa)
+	if modo_prueba:
+		_cargar_mapa_de_prueba()
+	else:
+		nuevo_mapa()
 
 
-func _colocar_ejercitos_iniciales() -> void:
+## Genera un mapa aleatorio. Con semilla_fija >= 0 repite siempre el mismo mapa.
+func nuevo_mapa(semilla_fija: int = -1) -> void:
+	if estado == Estado.MOVIENDO or turno_ia:
+		return
+	deseleccionar()
+	semilla = semilla_fija if semilla_fija >= 0 else randi()
+	var generado := GeneradorMapa.new().generar(semilla)
+	if generado.is_empty():
+		_cargar_mapa_de_prueba()
+		return
+	mapa.cargar_desde_texto(generado["lineas"])
+	for u in generado["unidades"]:
+		mapa.crear_unidad(u["tipo"], u["equipo"], u["celda"])
+	print("Mapa generado con semilla ", semilla)
+	_empezar_partida()
+
+
+func _cargar_mapa_de_prueba() -> void:
+	mapa.cargar_desde_texto(GameMap.MAPA_PRUEBA)
 	mapa.crear_unidad("infanteria", "azul", Vector2i(2, 4))
 	mapa.crear_unidad("tanque", "azul", Vector2i(3, 2))
 	mapa.crear_unidad("artilleria", "azul", Vector2i(1, 6))
 	mapa.crear_unidad("infanteria", "rojo", Vector2i(13, 4))
 	mapa.crear_unidad("tanque", "rojo", Vector2i(12, 2))
 	mapa.crear_unidad("artilleria", "rojo", Vector2i(14, 6))
+	_empezar_partida()
+
+
+func _empezar_partida() -> void:
+	equipo_actual = "azul"
+	# Centrar el mapa en la pantalla (dejando arriba la franja del HUD).
+	var tamano := Vector2(mapa.ancho, mapa.alto) * Datos.TAM_CASILLA
+	var pantalla := get_viewport_rect().size
+	mapa.position = Vector2(floorf((pantalla.x - tamano.x) / 2.0), 30 + floorf((pantalla.y - 30 - tamano.y) / 2.0))
+	_actualizar_hud()
 
 
 # ---------------------------------------------------------------- entrada táctil
@@ -47,6 +86,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func tocar_celda(celda: Vector2i) -> void:
+	if turno_ia:
+		return
 	match estado:
 		Estado.MOVIENDO:
 			return
@@ -108,16 +149,24 @@ func mover(u: Unidad, destino: Vector2i) -> void:
 
 # ---------------------------------------------------------------- turnos (TEMPORAL)
 
-## TEMPORAL para poder probar el movimiento: cambia de equipo y reactiva las unidades.
-## Persona 1 lo reemplaza con el sistema de turnos real (créditos, IA, etc.).
+## TEMPORAL para poder probar: cambia de equipo, reactiva las unidades
+## y, si le toca a la máquina, juega la IA y devuelve el turno.
+## Persona 1 lo reemplaza con el sistema de turnos real (créditos, victoria, etc.).
 func terminar_turno() -> void:
-	if estado == Estado.MOVIENDO:
+	if estado == Estado.MOVIENDO or turno_ia:
 		return
 	deseleccionar()
 	equipo_actual = "rojo" if equipo_actual == "azul" else "azul"
 	for u in mapa.unidades_de(equipo_actual):
 		u.reiniciar_turno()
 	_actualizar_hud()
+	if equipo_actual == ia.equipo:
+		turno_ia = true
+		boton_terminar.disabled = true
+		await ia.jugar_turno()
+		turno_ia = false
+		boton_terminar.disabled = false
+		terminar_turno()
 
 
 func _actualizar_hud() -> void:

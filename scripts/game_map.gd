@@ -3,11 +3,13 @@ extends Node2D
 ## El mapa de cuadrícula: dibuja el terreno, guarda dónde está cada unidad
 ## y calcula a qué casillas se puede mover una unidad.
 
-## Leyenda del mapa:
+## Leyenda de los mapas en texto:
 ##   .  llanura      b  bosque       m  montaña      ~  agua
 ##   H  cuartel azul h  cuartel rojo F  base azul    f  base roja
-## Para cambiar el mapa basta con editar estas filas (todas del mismo largo).
-const MAPA := [
+##   c  ciudad neutral (se puede capturar)
+## El juego normal usa mapas aleatorios (ver generador_mapa.gd).
+## Este mapa fijo se usa en las pruebas automáticas.
+const MAPA_PRUEBA := [
 	"..b....~~....m..",
 	".....b.~~..b....",
 	".F.....~...m..f.",
@@ -21,16 +23,56 @@ const MAPA := [
 ]
 
 const DIRECCIONES := [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]
+const EDIFICIOS := ["cuartel", "base", "ciudad"]
 
 var ancho: int = 0
 var alto: int = 0
+## terrenos[y][x] = nombre del terreno ("llanura", "bosque", ...)
+var terrenos: Array = []
+## Diccionario celda -> dueño ("azul", "rojo" o "neutral"). Solo para edificios.
+var duenos := {}
 ## Diccionario celda (Vector2i) -> Unidad
 var unidades := {}
 
 
-func _ready() -> void:
-	alto = MAPA.size()
-	ancho = MAPA[0].length()
+static func letra_a_terreno(letra: String) -> String:
+	match letra:
+		"b": return "bosque"
+		"m": return "montana"
+		"~": return "agua"
+		"H", "h": return "cuartel"
+		"F", "f": return "base"
+		"c": return "ciudad"
+		_: return "llanura"
+
+
+static func letra_a_dueno(letra: String) -> String:
+	match letra:
+		"H", "F": return "azul"
+		"h", "f": return "rojo"
+		"c": return "neutral"
+		_: return ""
+
+
+## Carga un mapa escrito como lista de filas de texto (todas del mismo largo).
+## Borra las unidades que hubiera.
+func cargar_desde_texto(lineas: Array) -> void:
+	for u in unidades.values():
+		u.queue_free()
+	unidades.clear()
+	duenos.clear()
+	terrenos.clear()
+	alto = lineas.size()
+	ancho = lineas[0].length()
+	for y in alto:
+		var fila: Array[String] = []
+		for x in ancho:
+			var letra: String = lineas[y][x]
+			fila.append(letra_a_terreno(letra))
+			var dueno := letra_a_dueno(letra)
+			if dueno != "":
+				duenos[Vector2i(x, y)] = dueno
+		terrenos.append(fila)
 	queue_redraw()
 
 
@@ -40,37 +82,41 @@ func en_mapa(celda: Vector2i) -> bool:
 	return celda.x >= 0 and celda.y >= 0 and celda.x < ancho and celda.y < alto
 
 
-func letra_en(celda: Vector2i) -> String:
-	return MAPA[celda.y][celda.x]
-
-
 func terreno_en(celda: Vector2i) -> String:
-	match letra_en(celda):
-		"b": return "bosque"
-		"m": return "montana"
-		"~": return "agua"
-		"H", "h": return "cuartel"
-		"F", "f": return "base"
-		_: return "llanura"
+	return terrenos[celda.y][celda.x]
 
 
-## Dueño de un edificio ("azul", "rojo") o "" si no es edificio.
+## Dueño de un edificio ("azul", "rojo", "neutral") o "" si no es edificio.
 func dueno_en(celda: Vector2i) -> String:
-	var letra := letra_en(celda)
-	if letra == "H" or letra == "F":
-		return "azul"
-	if letra == "h" or letra == "f":
-		return "rojo"
-	return ""
+	return duenos.get(celda, "")
+
+
+## Para capturar edificios (persona 1): cambia el dueño y redibuja.
+func cambiar_dueno(celda: Vector2i, equipo: String) -> void:
+	if duenos.has(celda):
+		duenos[celda] = equipo
+		queue_redraw()
+
+
+## Edificios (cuarteles, bases y ciudades) que pertenecen a un equipo.
+func edificios_de(equipo: String) -> Array[Vector2i]:
+	var lista: Array[Vector2i] = []
+	for c in duenos:
+		if duenos[c] == equipo:
+			lista.append(c)
+	return lista
+
+
+## Créditos que gana un equipo al empezar su turno.
+func ingreso_de(equipo: String) -> int:
+	return edificios_de(equipo).size() * Datos.INGRESO_POR_EDIFICIO
 
 
 ## Busca la celda del cuartel o la base de un equipo. tipo: "cuartel" o "base".
 func buscar_edificio(tipo: String, equipo: String) -> Vector2i:
-	for y in alto:
-		for x in ancho:
-			var c := Vector2i(x, y)
-			if terreno_en(c) == tipo and dueno_en(c) == equipo:
-				return c
+	for c in duenos:
+		if duenos[c] == equipo and terreno_en(c) == tipo:
+			return c
 	return Vector2i(-1, -1)
 
 
@@ -188,6 +234,8 @@ func camino_hasta(alcance: Dictionary, destino: Vector2i) -> Array[Vector2i]:
 # ---------------------------------------------------------------- dibujo
 
 func _draw() -> void:
+	if terrenos.is_empty():
+		return
 	for y in alto:
 		for x in ancho:
 			var celda := Vector2i(x, y)
