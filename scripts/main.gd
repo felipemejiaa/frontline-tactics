@@ -12,10 +12,8 @@ const FUENTE_MENU := 10
 
 @onready var mapa: GameMap = $GameMap
 @onready var resaltado: Resaltado = $GameMap/Resaltado
-@onready var etiqueta_turno: Label = $HUD/EtiquetaTurno
-@onready var boton_terminar: Button = $HUD/BotonTerminar
 @onready var ia: IA = $IA
-@onready var boton_nuevo_mapa: Button = $HUD/BotonNuevoMapa
+@onready var hud: HUD = $HUD
 
 ## Las pruebas automáticas lo ponen en true para usar siempre el mismo mapa.
 var modo_prueba := false
@@ -35,7 +33,6 @@ var unidad_menu: Unidad = null
 var objetivos_actuales: Array[Unidad] = []
 var menu: PanelContainer
 var caja_menu: VBoxContainer
-var etiqueta_mensaje: Label
 
 
 func _ready() -> void:
@@ -46,8 +43,8 @@ func _ready() -> void:
 	ia.ataque_elegido.connect(reglas.atacar)
 	unidad_movida.connect(_on_unidad_movida)
 	_construir_interfaz()
-	boton_terminar.pressed.connect(terminar_turno)
-	boton_nuevo_mapa.pressed.connect(nuevo_mapa)
+	hud.terminar_turno_pedido.connect(terminar_turno)
+	hud.nuevo_mapa_pedido.connect(nuevo_mapa)
 	if modo_prueba:
 		_cargar_mapa_de_prueba()
 	else:
@@ -85,9 +82,9 @@ func _cargar_mapa_de_prueba() -> void:
 func _empezar_partida() -> void:
 	equipo_actual = "azul"
 	juego_terminado = false
-	etiqueta_mensaje.visible = false
-	menu.visible = false
-	boton_terminar.disabled = false
+	_cerrar_menu()
+	hud.cerrar_todo()
+	hud.bloquear_botones(false)
 	reglas.iniciar(mapa)
 	reglas.al_empezar_turno(equipo_actual)  # el azul cobra al empezar
 	# Centrar el mapa en la pantalla (dejando arriba la franja del HUD).
@@ -103,7 +100,8 @@ func _empezar_partida() -> void:
 ## así que esto funciona igual en el PC y en el celular.
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var celda := mapa.pos_a_celda(mapa.get_local_mouse_position())
+		# Pasar la posición del toque (en pantalla) a coordenadas del mapa.
+		var celda := mapa.pos_a_celda(mapa.to_local(get_canvas_transform().affine_inverse() * event.position))
 		if mapa.en_mapa(celda):
 			tocar_celda(celda)
 		elif estado == Estado.SELECCIONADA:
@@ -204,12 +202,9 @@ func _construir_interfaz() -> void:
 	menu.visible = false
 	caja_menu = VBoxContainer.new()
 	menu.add_child(caja_menu)
-	$HUD.add_child(menu)
-	etiqueta_mensaje = Label.new()
-	etiqueta_mensaje.position = Vector2(170, 110)
-	etiqueta_mensaje.add_theme_font_size_override("font_size", 24)
-	etiqueta_mensaje.visible = false
-	$HUD.add_child(etiqueta_mensaje)
+	hud.add_child(menu)
+	# Que quede debajo del menú de pausa y de la pantalla de fin (si no, se podría tocar a través de ellos).
+	hud.move_child(menu, hud.get_node("%MenuPausa").get_index())
 
 
 ## opciones: lista de [texto, Callable, (deshabilitado)]
@@ -305,25 +300,34 @@ func terminar_turno() -> void:
 	_actualizar_hud()
 	if equipo_actual == ia.equipo:
 		turno_ia = true
-		boton_terminar.disabled = true
+		hud.bloquear_botones(true)
 		await ia.jugar_turno()
 		turno_ia = false
-		boton_terminar.disabled = juego_terminado
+		hud.bloquear_botones(false)
 		if not juego_terminado:
 			terminar_turno()
 
 
 func _on_partida_terminada(ganador: String) -> void:
+	terminar_partida(ganador)
+
+
+## Muestra la pantalla de victoria o derrota. ganador: "azul" o "rojo".
+func terminar_partida(ganador: String) -> void:
 	juego_terminado = true
 	_cerrar_menu()
 	deseleccionar()
-	boton_terminar.disabled = true
-	etiqueta_mensaje.text = "¡Victoria!" if ganador == "azul" else "Derrota"
-	etiqueta_mensaje.visible = true
+	hud.mostrar_fin(ganador)
 
 
 func _actualizar_hud() -> void:
-	var quien := "Azul" if equipo_actual == "azul" else "Rojo"
-	var azul: int = reglas.creditos.get("azul", 0)
-	var rojo: int = reglas.creditos.get("rojo", 0)
-	etiqueta_turno.text = "Turno: %s  |  Azul: %d  Rojo: %d" % [quien, azul, rojo]
+	hud.mostrar_turno(equipo_actual, reglas.creditos)
+
+
+## Botón "atrás" de Android: abre o cierra el menú de pausa.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST and not turno_ia:
+		if hud.hay_menu_abierto():
+			hud.cerrar_pausa()
+		else:
+			hud.abrir_pausa()

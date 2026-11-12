@@ -11,7 +11,8 @@ config_version=5
 [application]
 
 config/name="Frontline Tactics"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/menu_principal.tscn"
+config/quit_on_go_back=false
 config/features=PackedStringArray("4.3", "GL Compatibility")
 
 [display]
@@ -22,6 +23,10 @@ window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="viewport"
 window/handheld/orientation=0
+
+[gui]
+
+theme/custom="res://ui/tema.tres"
 
 [rendering]
 

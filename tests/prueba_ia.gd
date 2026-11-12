@@ -32,10 +32,11 @@ func _initialize() -> void:
 	for u in mapa.unidades_de("rojo"):
 		var costo: int = u.datos()["costo_terreno"][mapa.terreno_en(u.celda)]
 		revisar(costo >= 0, "%s rojo terminó en terreno válido %s" % [u.tipo, u.celda])
-		if _dist_al_azul_mas_cercano(mapa, u.celda) < antes[u]:
+		if antes.has(u) and _dist_al_azul_mas_cercano(mapa, u.celda) < antes[u]:
 			se_acercaron += 1
 	revisar(se_acercaron >= 2, "las unidades rojas se acercaron al jugador (%d de 3)" % se_acercaron)
-	revisar(mapa.unidades.size() == 6, "no se perdió ni se duplicó ninguna unidad")
+	revisar(mapa.unidades_de("rojo").size() == 4, "la IA compró una unidad con sus créditos")
+	revisar(main.reglas.creditos["rojo"] < Reglas.CREDITOS_INICIALES + mapa.ingreso_de("rojo"), "la compra le costó créditos")
 	revisar(main.equipo_actual == "azul", "el turno volvió al jugador")
 
 	print("Ataque")
