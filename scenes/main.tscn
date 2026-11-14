@@ -46,6 +46,7 @@ offset_top = 5.0
 offset_right = 238.0
 offset_bottom = 25.0
 theme_override_font_sizes/font_size = 11
+tooltip_text = "Muestra en rojo dónde te puede atacar el enemigo en su próximo turno"
 text = "Peligro"
 
 [node name="BotonTienda" type="Button" parent="HUD"]

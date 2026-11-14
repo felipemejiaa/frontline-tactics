@@ -1,4 +1,4 @@
-"""Genera los efectos de sonido del juego (estilo retro, 8 bits).
+"""Genera los efectos de sonido y la música del juego (estilo retro, 8 bits).
 Uso: python generar_sonidos.py carpeta_destino"""
 import sys, wave
 import numpy as np
@@ -103,4 +103,77 @@ guardar("victoria", victoria, 0.45)
 derrota = notas([659, 587, 523, 392, 330], 0.18, 0.5, 0.25)
 guardar("derrota", derrota, 0.45)
 
+# --- música: marcha en La menor, 120 bpm, 8 compases, se repite ---
+def frec(nota):
+    nombres = {"C": -9, "D": -7, "E": -5, "F": -4, "G": -2, "A": 0, "B": 2}
+    n = nombres[nota[0]]
+    i = 1
+    if len(nota) > 2 or (len(nota) == 2 and nota[1] in "#b"):
+        n += 1 if nota[1] == "#" else -1
+        i = 2
+    octava = int(nota[i:])
+    return 440.0 * 2 ** ((n + (octava - 4) * 12) / 12)
+
+negra = 0.5
+melodia = [("A4", 1), ("A4", .5), ("B4", .5), ("C5", 1), ("E5", 1),
+           ("D5", 1), ("C5", .5), ("B4", .5), ("A4", 2),
+           ("C5", 1), ("C5", .5), ("D5", .5), ("E5", 1), ("G5", 1),
+           ("F5", 1), ("E5", .5), ("D5", .5), ("E5", 2),
+           ("A5", 1), ("G5", .5), ("F5", .5), ("E5", 1), ("C5", 1),
+           ("D5", 1), ("B4", .5), ("C5", .5), ("D5", 2),
+           ("E5", 1), ("C5", .5), ("B4", .5), ("A4", 1), ("E4", 1),
+           ("A4", 1.5), ("B4", .5), ("A4", 2)]
+bajo = ["A2", "A2", "F2", "F2", "C3", "C3", "G2", "G2",
+        "F2", "F2", "G2", "G2", "A2", "E2", "A2", "A2"]  # una nota por medio compás x2
+
+def pista_melodia():
+    partes = []
+    for nota, beats in melodia:
+        dur = beats * negra
+        n = cuadrada(frec(nota), dur, 0.25)
+        e = envolvente(len(n), 0.005)
+        e[-int(SR * 0.04):] *= np.linspace(1, 0, int(SR * 0.04))
+        partes.append(n * e)
+    return np.concatenate(partes)
+
+def pista_bajo():
+    partes = []
+    for nota in bajo:
+        for _ in range(4):  # corcheas
+            n = cuadrada(frec(nota), negra / 2, 0.5)
+            partes.append(n * envolvente(len(n), 0.003, 0.12))
+    return np.concatenate(partes)
+
+def pista_bateria(largo):
+    x = np.zeros(largo)
+    paso_corchea = int(SR * negra / 2)
+    for i in range(0, largo - paso_corchea, paso_corchea):
+        k = i // paso_corchea
+        if k % 4 == 0:  # bombo
+            golpe_b = barrido(120, 40, 0.12) * envolvente(int(SR * 0.12), 0.001, 0.04)
+            x[i:i + len(golpe_b)] += 0.9 * golpe_b
+        elif k % 4 == 2:  # caja
+            c = ruido(0.1) * envolvente(int(SR * 0.1), 0.001, 0.03)
+            x[i:i + len(c)] += 0.5 * c
+        h = ruido(0.03) * envolvente(int(SR * 0.03), 0.001, 0.008)
+        x[i:i + len(h)] += 0.15 * h
+    return x
+
+m = pista_melodia()
+b = pista_bajo()
+largo = min(len(m), len(b))
+musica = 0.45 * m[:largo] + 0.35 * b[:largo] + 0.5 * pista_bateria(largo)
+guardar("musica", musica, 0.5)
+
+# --- golpe crítico: un "zing" metálico agudo y un golpe seco ---
+zing = barrido(2400, 1200, 0.18, "cuadrada") * envolvente(int(SR * 0.18), 0.001, 0.06)
+punch = pasa_bajos(ruido(0.22), 0.45) * envolvente(int(SR * 0.22), 0.001, 0.05) + barrido(300, 70, 0.22) * envolvente(int(SR * 0.22), 0.001, 0.07)
+critico = np.concatenate([0.5 * zing, np.zeros(int(SR * 0.02))])
+critico = np.concatenate([critico, punch])
+guardar("critico", critico, 0.7)
+
+# --- unidad destruida: explosión grande con tono que cae ---
+grande = pasa_bajos(ruido(1.1), 0.18) * envolvente(int(SR * 1.1), 0.002, 0.3)
+grande += 0.8 * barrido(140, 20, 1.1) * envolvente(int(SR * 1.1), 0.002, 0.35)
+guardar("destruccion", grande, 0.8)
 print("listo")

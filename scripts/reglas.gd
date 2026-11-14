@@ -5,7 +5,7 @@ extends Node
 ## Los turnos los sigue manejando main.gd; este nodo solo avisa y calcula.
 
 signal creditos_cambiados(equipo: String, cantidad: int)
-signal unidad_atacada(atacante: Unidad, objetivo: Unidad, dano: int)
+signal unidad_atacada(atacante: Unidad, objetivo: Unidad, dano: int, critico: bool)
 signal unidad_danada(objetivo: Unidad, dano: int)      # daño que no viene de un ataque (bombardeo)
 signal unidad_curada(unidad: Unidad, cantidad: int)
 signal ciudad_capturada(celda: Vector2i, equipo: String)
@@ -23,6 +23,9 @@ const BONO_FLANQUEO := 0.15     # +15 % por cada aliado pegado al objetivo
 const BONO_RANGO := 0.1         # +10 % por cada estrella de veteranía
 const PUNTOS_PARA_CAPTURAR := 20
 const SUERTE := 1               # el daño real varía entre -1 y +1 del estimado
+const PROB_CRITICO := 0.10      # 10 % de probabilidad de golpe crítico...
+const CRITICO_POR_RANGO := 0.05 # ...+5 % por cada estrella de veteranía
+const MULT_CRITICO := 1.5       # un crítico hace 50 % más de daño
 const TIPOS_EDIFICIO := ["cuartel", "base", "ciudad"]
 
 var mapa: GameMap
@@ -222,7 +225,8 @@ func estimar(atacante: Unidad, objetivo: Unidad, desde: Vector2i) -> Dictionary:
 	var contra := 0
 	if vida_restante > 0 and puede_atacar_desde(objetivo, objetivo.celda, _fantasma(atacante, desde)):
 		contra = _dano(objetivo, vida_restante, objetivo.celda, atacante, desde)
-	return {"dano": dano, "contra": contra, "destruye": vida_restante <= 0,
+	return {"dano": dano, "contra": contra, "destruye": vida_restante <= 0, "critico": prob_critico(atacante),
+		"destruye_critico": objetivo.vida - int(ceil(dano * MULT_CRITICO)) <= 0,
 		"muere": contra >= atacante.vida, "flanqueo": aliados_flanqueando(atacante.equipo, objetivo.celda, desde, atacante)}
 
 
@@ -239,15 +243,15 @@ func _fantasma(u: Unidad, celda: Vector2i) -> Unidad:
 func atacar(atacante: Unidad, objetivo: Unidad) -> void:
 	if terminada or atacante.ya_ataco or not puede_atacar(atacante, objetivo):
 		return
-	var dano := _con_suerte(calcular_dano(atacante, objetivo))
-	objetivo.vida -= dano
-	unidad_atacada.emit(atacante, objetivo, dano)
+	var golpe := _tirar_dados(atacante, calcular_dano(atacante, objetivo))
+	objetivo.vida -= golpe["dano"]
+	unidad_atacada.emit(atacante, objetivo, golpe["dano"], golpe["critico"])
 	if objetivo.vida <= 0:
 		_destruir(objetivo, atacante)
 	elif puede_atacar(objetivo, atacante):  # contraataque
-		var contra := _con_suerte(calcular_dano(objetivo, atacante))
-		atacante.vida -= contra
-		unidad_atacada.emit(objetivo, atacante, contra)
+		var contra := _tirar_dados(objetivo, calcular_dano(objetivo, atacante))
+		atacante.vida -= contra["dano"]
+		unidad_atacada.emit(objetivo, atacante, contra["dano"], contra["critico"])
 		if atacante.vida <= 0:
 			_destruir(atacante, objetivo)
 	if is_instance_valid(atacante) and atacante.vida > 0:
@@ -258,6 +262,20 @@ func atacar(atacante: Unidad, objetivo: Unidad) -> void:
 ## Un poco de azar para que no todos los ataques sean idénticos (nunca menos de 1).
 func _con_suerte(dano: int) -> int:
 	return maxi(1, dano + randi_range(-SUERTE, SUERTE))
+
+
+func prob_critico(u: Unidad) -> float:
+	return PROB_CRITICO + CRITICO_POR_RANGO * u.rango
+
+
+## El "factor apuesta": suerte de ±1 y, a veces, un golpe crítico.
+## Devuelve {dano, critico}.
+func _tirar_dados(atacante: Unidad, dano_estimado: int) -> Dictionary:
+	var dano := _con_suerte(dano_estimado)
+	var critico := randf() < prob_critico(atacante)
+	if critico:
+		dano = int(ceil(dano * MULT_CRITICO))
+	return {"dano": dano, "critico": critico}
 
 
 func _destruir(victima: Unidad, verdugo: Unidad) -> void:

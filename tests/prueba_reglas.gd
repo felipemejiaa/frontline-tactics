@@ -5,6 +5,10 @@ extends SceneTree
 var fallos := 0
 
 
+func Main_sonido(destruida: bool, critico: bool) -> String:
+	return load("res://scripts/main.gd").sonido_de_golpe(destruida, critico)
+
+
 func revisar(condicion: bool, mensaje: String) -> void:
 	print("  OK   " if condicion else "  FALLA ", mensaje)
 	if not condicion:
@@ -67,8 +71,13 @@ func _initialize() -> void:
 	var vida_antes := vecino.vida
 	main.tocar_celda(vecino.celda)
 	revisar(vecino.vida == vida_antes and main.get_node("%PanelInfo").visible and "Harás" in main.get_node("%TextoInfo").text,
-		"el primer toque muestra la vista previa del daño sin atacar")
-	main.tocar_celda(vecino.celda)
+		"un toque al enemigo muestra la vista previa del daño sin atacar")
+	var boton_atacar: Button = null
+	for b in main.caja_menu.get_children():
+		if b is Button and b.text == "Atacar":
+			boton_atacar = b
+	revisar(boton_atacar != null and main.menu.visible, "aparece el botón Atacar")
+	boton_atacar.pressed.emit()
 	await create_timer(0.3).timeout
 	revisar(not is_instance_valid(vecino) or vecino.vida < vida_antes, "tocar al enemigo lo ataca directamente")
 	revisar(mi_inf.ya_ataco and main.estado == main.Estado.LIBRE and not main.menu.visible, "después del ataque no queda ningún menú abierto")
@@ -131,12 +140,32 @@ func _initialize() -> void:
 		var real := 10 - b.vida if is_instance_valid(b) and b.vida > 0 else -1
 		if real > 0:
 			resultados[real - estimado] = true
-			if absi(real - estimado) > Reglas.SUERTE:
-				revisar(false, "el daño (%d) no se aleja más de 1 del estimado (%d)" % [real, estimado])
+			var maximo_critico := int(ceil((estimado + Reglas.SUERTE) * Reglas.MULT_CRITICO))
+			if real < estimado - Reglas.SUERTE or real > maximo_critico:
+				revisar(false, "el daño (%d) está fuera de lo posible para el estimado (%d)" % [real, estimado])
 		if is_instance_valid(b):
 			mapa.eliminar_unidad(b)
 		await process_frame
 	revisar(resultados.size() >= 2, "el daño varía un poco entre ataques (%s)" % [resultados.keys()])
+	var criticos := [0, 0]
+	var contar := func(_a, _o, _d, critico):
+		criticos[0] += 1
+		if critico:
+			criticos[1] += 1
+	reglas.unidad_atacada.connect(contar)
+	for i in 300:
+		var b := mapa.crear_unidad("tanque", "rojo", Vector2i(5, 1))
+		a.reiniciar_turno()
+		a.vida = 10
+		reglas.atacar(a, b)
+		if is_instance_valid(b):
+			mapa.eliminar_unidad(b)
+		await process_frame
+	reglas.unidad_atacada.disconnect(contar)
+	var porcentaje: float = 100.0 * criticos[1] / criticos[0]
+	revisar(porcentaje > 4 and porcentaje < 20, "hay golpes críticos de vez en cuando (%.0f%% de los golpes)" % porcentaje)
+	revisar(Main_sonido(true, false) == "destruccion" and Main_sonido(false, true) == "critico" and Main_sonido(false, false) == "golpe",
+		"tres sonidos: golpe, crítico y destrucción")
 	mapa.eliminar_unidad(a)
 	await process_frame
 

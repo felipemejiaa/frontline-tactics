@@ -37,7 +37,7 @@ func reproducir(info_azul: Dictionary, info_rojo: Dictionary, eventos: Array) ->
 	_raiz.create_tween().tween_property(_raiz, "modulate:a", 1.0, 0.2)
 	await _pausa(0.35)
 	for ev in eventos:
-		await _disparar(ev["lado"], ev["dano"], ev["vida_final"])
+		await _disparar(ev["lado"], ev["dano"], ev["vida_final"], ev.get("critico", false))
 		await _pausa(0.2)
 	await _pausa(0.4)
 	_raiz.create_tween().tween_property(_raiz, "modulate:a", 0.0, 0.2)
@@ -166,7 +166,7 @@ static func _color_vida(vida: int) -> Color:
 
 # ---------------------------------------------------------------- el combate
 
-func _disparar(lado: String, dano: int, vida_final: int) -> void:
+func _disparar(lado: String, dano: int, vida_final: int, critico := false) -> void:
 	var tirador: Dictionary = _lados[lado]
 	var blanco: Dictionary = _lados["der" if lado == "izq" else "izq"]
 	var hacia := 1.0 if lado == "izq" else -1.0
@@ -201,7 +201,12 @@ func _disparar(lado: String, dano: int, vida_final: int) -> void:
 	await _pausa(0.32)
 
 	# 3. Impacto: chispas, temblor, baja la barra de vida y caen figuras.
-	Sonido.reproducir("golpe")
+	#    Sonido distinto si es crítico o si la unidad queda destruida.
+	var main_ := get_parent()
+	Sonido.reproducir(main_.sonido_de_golpe(vida_final <= 0, critico) if main_.has_method("sonido_de_golpe") else "golpe")
+	if critico:
+		_letrero_critico(blanco)
+		_sacudir(6.0)
 	for f in blanco["figuras"]:
 		Efectos.chispas(blanco["panel"], f.position + Vector2(randf_range(-8, 8), randf_range(-8, 4)), 8, 1.5)
 		var origen: Vector2 = f.position
@@ -218,13 +223,40 @@ func _disparar(lado: String, dano: int, vida_final: int) -> void:
 
 	var quedan := _cantidad_figuras(vida_nueva)
 	var figuras: Array[Sprite2D] = blanco["figuras"]
-	if quedan < figuras.size():
-		Sonido.reproducir("explosion", -3.0 if quedan > 0 else 0.0)
+	if quedan < figuras.size() and quedan > 0:
+		Sonido.reproducir("explosion", -6.0)
 	while figuras.size() > quedan:
 		var caida: Sprite2D = figuras.pop_back()
 		Efectos.explosion(blanco["panel"], caida.position, 2.5)
 		caida.create_tween().tween_property(caida, "modulate:a", 0.0, 0.25)
 	await _pausa(0.35)
+
+
+func _letrero_critico(lado: Dictionary) -> void:
+	var etiqueta := Label.new()
+	etiqueta.text = "¡CRÍTICO!"
+	etiqueta.add_theme_font_size_override("font_size", 20)
+	etiqueta.add_theme_color_override("font_color", Color(1, 0.9, 0.2))
+	etiqueta.add_theme_color_override("font_outline_color", Color.BLACK)
+	etiqueta.add_theme_constant_override("outline_size", 6)
+	etiqueta.position = Vector2(ANCHO_PANEL / 2.0 - 50, 88)
+	etiqueta.pivot_offset = Vector2(50, 12)
+	etiqueta.scale = Vector2(0.3, 0.3)
+	lado["panel"].add_child(etiqueta)
+	var tw := etiqueta.create_tween()
+	tw.tween_property(etiqueta, "scale", Vector2(1.2, 1.2), 0.12).set_trans(Tween.TRANS_BACK)
+	tw.tween_property(etiqueta, "scale", Vector2.ONE, 0.08)
+	tw.tween_interval(0.4)
+	tw.tween_property(etiqueta, "modulate:a", 0.0, 0.3)
+	tw.tween_callback(etiqueta.queue_free)
+	Efectos.chispas(lado["panel"], Vector2(ANCHO_PANEL / 2.0, 120), 30, 2.5, Color(1, 0.95, 0.4))
+
+
+func _sacudir(fuerza: float) -> void:
+	var tw := _raiz.create_tween()
+	for i in 6:
+		tw.tween_property(_raiz, "position", Vector2(randf_range(-fuerza, fuerza), randf_range(-fuerza, fuerza)), 0.03)
+	tw.tween_property(_raiz, "position", Vector2.ZERO, 0.04)
 
 
 func _numero_dano(lado: Dictionary, dano: int) -> void:

@@ -53,6 +53,37 @@ func mostrar_info(texto: String, a_la_derecha: bool) -> void:
 	panel.show()
 
 
+## Mensaje corto abajo en el centro que desaparece solo (por ejemplo, qué hace un botón).
+func mostrar_aviso(texto: String, segundos := 4.0) -> void:
+	if _aviso != null and is_instance_valid(_aviso):
+		_aviso.queue_free()
+	_aviso = PanelContainer.new()
+	_aviso.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var etiqueta := Label.new()
+	etiqueta.text = texto
+	etiqueta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	etiqueta.custom_minimum_size = Vector2(minf(300, texto.length() * 6.0 + 10), 0)
+	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	etiqueta.add_theme_font_size_override("font_size", 9)
+	_aviso.add_child(etiqueta)
+	add_child(_aviso)
+	move_child(_aviso, %MenuPausa.get_index())
+	_aviso.reset_size()
+	await get_tree().process_frame
+	if not is_instance_valid(_aviso):
+		return
+	_aviso.reset_size()
+	_aviso.position = Vector2((480 - _aviso.size.x) / 2.0, 270 - _aviso.size.y - 8)
+	var este := _aviso
+	var tw := este.create_tween()
+	tw.tween_interval(segundos)
+	tw.tween_property(este, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(este.queue_free)
+
+
+var _aviso: PanelContainer
+
+
 func ocultar_info() -> void:
 	%PanelInfo.hide()
 

@@ -11,6 +11,8 @@ var color := COLOR_MOVER
 var cursor := Vector2i(-1, -1)
 ## Casillas de enemigos que se pueden atacar (se marcan con un borde rojo).
 var ataque: Array[Vector2i] = []
+## Numerito sobre cada enemigo atacable con el daño que le harías: celda -> texto.
+var etiquetas := {}
 
 
 func mostrar(lista: Array[Vector2i], nuevo_color: Color, celda_cursor: Vector2i,
@@ -25,6 +27,7 @@ func mostrar(lista: Array[Vector2i], nuevo_color: Color, celda_cursor: Vector2i,
 func limpiar() -> void:
 	celdas = []
 	ataque = []
+	etiquetas = {}
 	cursor = Vector2i(-1, -1)
 	queue_redraw()
 
@@ -37,6 +40,13 @@ func _draw() -> void:
 		var r := Rect2(Vector2(c * t), Vector2(t, t))
 		draw_rect(r, Color(1, 0.2, 0.2, 0.35))
 		draw_rect(r.grow(-0.5), Color(1, 0.25, 0.25), false, 1.0)
+	var fuente := ThemeDB.fallback_font
+	for c in etiquetas:
+		var texto: String = etiquetas[c]
+		var ancho := fuente.get_string_size(texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+		var pos := Vector2(c * t) + Vector2((t - ancho) / 2.0, -2)
+		draw_string_outline(fuente, pos, texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, 4, Color.BLACK)
+		draw_string(fuente, pos, texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(1, 0.85, 0.3))
 	if cursor.x >= 0:
 		draw_texture_rect_region(Datos.ATLAS,
 			Rect2(Vector2(cursor * t), Vector2(t, t)),

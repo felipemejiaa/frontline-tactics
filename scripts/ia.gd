@@ -258,13 +258,14 @@ func _usar_habilidades() -> void:
 			mejor_cuenta = cuenta
 			mejor_centro = e.celda
 	if mejor_centro.x >= 0 and reglas.creditos[equipo] >= reglas.precio_habilidad("bombardeo", equipo) + 1000:
-		if main.has_method("enfocar_celda"):
-			await main.enfocar_celda(mejor_centro)
-		if reglas.usar_bombardeo(equipo, mejor_centro) and main.has_method("animar_bombardeo"):
-			await main.animar_bombardeo(mejor_centro)
+		if main.has_method("animar_bombardeo"):
+			await main.animar_bombardeo(mejor_centro, equipo)
+		reglas.usar_bombardeo(equipo, mejor_centro)
 	# Reparación a su unidad más valiosa si está muy herida.
 	for u in mapa.unidades_de(equipo):
 		if u.vida <= 4 and u.datos()["precio"] >= 2500 and reglas.creditos[equipo] >= reglas.precio_habilidad("reparacion", equipo) + 1000:
+			if main.has_method("animar_reparacion") and mapa.se_ve(u.celda):
+				await main.animar_reparacion(u)
 			reglas.usar_reparacion(equipo, u)
 			break
 

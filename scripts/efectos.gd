@@ -6,9 +6,12 @@ extends RefCounted
 
 ## Chispas pequeñas (impacto de un disparo).
 static func chispas(padre: Node, pos: Vector2, cantidad := 10, tamano := 1.0,
-		color := Color(1, 0.85, 0.3)) -> void:
-	var p := _particulas(cantidad, 0.35, tamano, color)
+		color := Color(1, 0.85, 0.3), subir := false) -> void:
+	var p := _particulas(cantidad, 0.6 if subir else 0.35, tamano, color)
 	p.position = pos
+	if subir:  # brillitos que suben (curación)
+		p.gravity = Vector2(0, -40 * tamano)
+		p.spread = 50.0
 	p.initial_velocity_min = 30 * tamano
 	p.initial_velocity_max = 70 * tamano
 	_lanzar(padre, p)
@@ -28,6 +31,31 @@ static func explosion(padre: Node, pos: Vector2, tamano := 1.0) -> void:
 	humo.initial_velocity_max = 25 * tamano
 	humo.gravity = Vector2(0, -35 * tamano)
 	_lanzar(padre, humo)
+
+
+## Onda que crece desde un punto (radar).
+static func onda(padre: Node, pos: Vector2, radio: float, color: Color, duracion := 1.0) -> void:
+	var o := Onda.new()
+	o.position = pos
+	o.color = color
+	o.z_index = 22
+	padre.add_child(o)
+	var tw := o.create_tween()
+	tw.tween_property(o, "radio", radio, duracion)
+	tw.parallel().tween_property(o, "modulate:a", 0.0, duracion).set_ease(Tween.EASE_IN)
+	tw.tween_callback(o.queue_free)
+
+
+class Onda extends Node2D:
+	var color := Color.GREEN
+	var radio := 1.0:
+		set(valor):
+			radio = valor
+			queue_redraw()
+
+	func _draw() -> void:
+		draw_arc(Vector2.ZERO, radio, 0, TAU, 48, color, 2.0)
+		draw_arc(Vector2.ZERO, radio * 0.92, 0, TAU, 48, Color(color, 0.35), 1.0)
 
 
 static func _particulas(cantidad: int, vida: float, tamano: float, color: Color) -> CPUParticles2D:

@@ -190,6 +190,71 @@ func _initialize() -> void:
 	main.deseleccionar()
 	revisar(mapa.ancho == 36 and mapa.alto == 20, "el mapa es de 36x20")
 
+	print("Vista previa con botón Atacar")
+	await preparar(["H..........h", "F..........f", "............", "............"])
+	var yo := mapa.crear_unidad("tanque", "azul", Vector2i(3, 2))
+	var r1 := mapa.crear_unidad("infanteria", "rojo", Vector2i(6, 2))
+	var r2 := mapa.crear_unidad("infanteria", "rojo", Vector2i(6, 3))
+	main.equipo_actual = "azul"
+	main.deseleccionar()
+	main.tocar_celda(yo.celda)
+	main.tocar_celda(r1.celda)
+	revisar(main.estado == main.Estado.PREVISION and main.menu.visible and r1.vida == 10, "un toque: vista previa con botón Atacar")
+	main.tocar_celda(r2.celda)
+	revisar(main._prevision["objetivo"] == r2, "tocar otro enemigo cambia la vista previa")
+	main.tocar_celda(Vector2i(0, 3))
+	revisar(main.estado == main.Estado.SELECCIONADA and main.seleccionada == yo, "tocar fuera cancela y deja la unidad seleccionada")
+	main.tocar_celda(r1.celda)
+	await main._confirmar_ataque()
+	revisar(r1.vida < 10 or not is_instance_valid(r1), "el botón Atacar ataca")
+	revisar(main.estado == main.Estado.LIBRE and not main.menu.visible, "y no queda nada abierto")
+
+	print("Animaciones de habilidades")
+	await preparar(["H..........h", "F..........f", "............", "............"])
+	main.equipo_actual = "azul"
+	reglas.creditos["azul"] = 50000
+	var victima := mapa.crear_unidad("tanque", "rojo", Vector2i(6, 2))
+	var propia := mapa.crear_unidad("tanque", "azul", Vector2i(2, 2))
+	propia.vida = 4
+	var vio_avion := [false]
+	var revisar_avion := func():
+		for h in mapa.get_children():
+			if h is Sprite2D and not (h is Unidad) and h.z_index == 25:
+				vio_avion[0] = true
+	var inicio := Time.get_ticks_msec()
+	var listo := [false]
+	var bombardear := func():
+		await main._bombardear(Vector2i(6, 2))
+		listo[0] = true
+	bombardear.call()
+	var vida_al_ver_avion := -1
+	while not listo[0]:
+		revisar_avion.call()
+		if vio_avion[0] and vida_al_ver_avion < 0:
+			vida_al_ver_avion = victima.vida
+		await process_frame
+	revisar(vio_avion[0], "en el bombardeo aparece un avión")
+	revisar(vida_al_ver_avion == 10, "el daño no llega antes de que caigan las bombas")
+	revisar(victima.vida == 7, "después del avión, 3 de daño")
+	revisar((Time.get_ticks_msec() - inicio) > 1000, "la animación dura más de un segundo")
+	await main._reparar(propia.celda)
+	revisar(propia.vida == 9, "reparar con animación da +5")
+	main._usar_habilidad("marcha")
+	await create_timer(0.8).timeout
+	revisar(propia.bono_mov == 2 and main.estado == main.Estado.LIBRE, "marcha forzada con animación")
+	main.hud.mostrar_aviso("prueba")
+	await process_frame
+	await process_frame
+	main._alternar_peligro()
+	await process_frame
+	await process_frame
+	var texto_aviso := ""
+	for h in main.hud.get_children():
+		if h is PanelContainer and h.get_child_count() > 0 and h.get_child(0) is Label and "peligro" in h.get_child(0).text.to_lower():
+			texto_aviso = h.get_child(0).text
+	revisar("enemigo te puede atacar" in texto_aviso, "al tocar Peligro aparece la explicación")
+	main._alternar_peligro()
+
 	print("Partidas completas en cada dificultad (con niebla)")
 	Cinematica.activadas = false
 	for dif in ["facil", "normal", "dificil"]:
