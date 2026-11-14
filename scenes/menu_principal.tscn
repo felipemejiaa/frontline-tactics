@@ -110,7 +110,7 @@ text = "• Toca una de tus unidades (azules) para ver a dónde se puede mover, 
     Tanque → le gana a la Infantería
     Artillería → le gana al Tanque (ataca de lejos)
 • Tanques y artillería no pueden entrar a bosques ni montañas. Nadie cruza el agua.
-• Lleva infantería a una ciudad y captúrala: cada edificio tuyo te da $1000 por turno. Compra unidades con el botón Tienda.
+• Lleva infantería a una ciudad y captúrala: cada edificio tuyo te da $500 por turno. Tarda 2 turnos (mira la barrita). Compra unidades con el botón Tienda.
 • Gana quien destruya todo el ejército rival o llegue a su cuartel general."
 autowrap_mode = 3
 

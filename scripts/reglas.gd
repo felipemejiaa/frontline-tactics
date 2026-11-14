@@ -31,6 +31,7 @@ func iniciar(mapa_ref: GameMap) -> void:
 	mapa = mapa_ref
 	terminada = false
 	_captura.clear()
+	mapa.progreso_captura.clear()
 	_cuarteles.clear()
 	for e in EQUIPOS:
 		creditos[e] = CREDITOS_INICIALES
@@ -145,8 +146,10 @@ func capturar(u: Unidad) -> void:
 	if terminada or not puede_capturar(u):
 		return
 	_captura[u.celda] = _captura.get(u.celda, 0) + u.vida
+	mapa.mostrar_progreso(u.celda, float(_captura[u.celda]) / PUNTOS_PARA_CAPTURAR, u.equipo)
 	if _captura[u.celda] >= PUNTOS_PARA_CAPTURAR:
 		_captura.erase(u.celda)
+		mapa.mostrar_progreso(u.celda, 0.0, "")
 		mapa.cambiar_dueno(u.celda, u.equipo)
 		ciudad_capturada.emit(u.celda, u.equipo)
 	marcar_lista(u)
@@ -156,6 +159,7 @@ func capturar(u: Unidad) -> void:
 ## Si la infantería se va de una ciudad a medio capturar, se pierde el avance.
 func reiniciar_captura(celda: Vector2i) -> void:
 	_captura.erase(celda)
+	mapa.mostrar_progreso(celda, 0.0, "")
 
 
 # ---------------- VICTORIA ----------------

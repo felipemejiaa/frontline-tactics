@@ -12,7 +12,7 @@ func _ready() -> void:
 	%BotonSalir.pressed.connect(_on_salir)
 	%BotonVolver.pressed.connect(_on_volver)
 	_poner_mapa_de_fondo()
-	Sonido.iniciar()  # arranca la música
+	Sonido.iniciar()
 
 
 ## Reutiliza el generador del juego para que el fondo sea distinto cada vez.

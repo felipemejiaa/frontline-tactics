@@ -1,9 +1,8 @@
 class_name Sonido
 extends Node
-## Sonidos y música del juego. Se usa desde cualquier script, por ejemplo:
+## Efectos de sonido del juego. Se usa desde cualquier script, por ejemplo:
 ##     Sonido.reproducir("disparo")
-## La primera vez que se usa se crea solo y se queda vivo todo el juego
-## (aunque se cambie de escena), así la música no se corta.
+## La primera vez que se usa se crea solo y se queda vivo todo el juego.
 ## Los sonidos se generaron con herramientas/generar_sonidos.py.
 
 const CARPETA := "res://assets/sonidos/"
@@ -12,21 +11,13 @@ const EFECTOS := ["clic", "disparo", "canon", "explosion", "golpe", "paso", "sel
 const CANALES := 8  # cuántos sonidos pueden sonar a la vez
 
 ## Se cambia desde el menú de pausa.
-static var activado := true:
-	set(valor):
-		activado = valor
-		if is_instance_valid(_yo):
-			if valor:
-				_yo._musica.play()
-			else:
-				_yo._musica.stop()
+static var activado := true
 
 static var _yo: Sonido
 
 var _sonidos := {}
 var _canales: Array[AudioStreamPlayer] = []
 var _siguiente := 0
-var _musica := AudioStreamPlayer.new()
 
 
 ## Crea el reproductor si todavía no existe.
@@ -50,16 +41,10 @@ func _init() -> void:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
 		_canales.append(p)
-	_musica.stream = load(CARPETA + "musica.wav")
-	_musica.volume_db = -8.0
-	_musica.finished.connect(_musica.play)  # repetir la música al terminar
-	add_child(_musica)
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	if activado:
-		_musica.play()
 	# Todos los botones hacen "clic": los que ya existen y los que se creen después.
 	_conectar_botones(get_tree().root)
 	get_tree().node_added.connect(_conectar_boton)

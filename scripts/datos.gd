@@ -25,7 +25,7 @@ const TERRENOS := {
 }
 
 ## Créditos que da cada edificio propio (cuartel, base o ciudad) al empezar el turno.
-const INGRESO_POR_EDIFICIO := 1000
+const INGRESO_POR_EDIFICIO := 500
 
 ## Unidades. "costo_terreno": cuántos puntos de movimiento gasta entrar a cada terreno.
 ## -1 significa que no puede entrar.

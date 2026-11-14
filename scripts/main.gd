@@ -49,7 +49,7 @@ func _ready() -> void:
 	reglas.partida_terminada.connect(_on_partida_terminada)
 	reglas.creditos_cambiados.connect(func(_e, _c): _actualizar_hud())
 	reglas.unidad_atacada.connect(_mostrar_dano)
-	reglas.ciudad_capturada.connect(func(_c, _e): Sonido.reproducir("captura"))
+	reglas.ciudad_capturada.connect(_celebrar_captura)
 	hud.tienda_pedida.connect(_on_tienda)
 	unidad_movida.connect(_on_unidad_movida)
 	_construir_interfaz()
@@ -239,6 +239,27 @@ func _texto_info(u: Unidad) -> String:
 	if not ataques_posibles.is_empty():
 		texto += "\nToca un enemigo en rojo para atacar"
 	return texto
+
+
+## Al terminar una captura: sonido, chispas del color del equipo y un letrerito.
+func _celebrar_captura(celda: Vector2i, equipo: String) -> void:
+	Sonido.reproducir("captura")
+	var color := Color(0.4, 0.7, 1.0) if equipo == "azul" else Color(1.0, 0.4, 0.35)
+	var pos := mapa.celda_a_pos(celda)
+	Efectos.chispas(mapa, pos, 16, 1.2, color)
+	var etiqueta := Label.new()
+	etiqueta.text = "¡Capturada!"
+	etiqueta.add_theme_font_size_override("font_size", 10)
+	etiqueta.add_theme_color_override("font_color", color)
+	etiqueta.add_theme_color_override("font_outline_color", Color.BLACK)
+	etiqueta.add_theme_constant_override("outline_size", 4)
+	etiqueta.position = pos + Vector2(-26, -22)
+	etiqueta.z_index = 10
+	mapa.add_child(etiqueta)
+	var tw := etiqueta.create_tween()
+	tw.tween_property(etiqueta, "position:y", etiqueta.position.y - 8, 1.0)
+	tw.parallel().tween_property(etiqueta, "modulate:a", 0.0, 1.0).set_delay(0.5)
+	tw.tween_callback(etiqueta.queue_free)
 
 
 ## Resuelve un ataque con su animación. La usan el jugador y la IA.

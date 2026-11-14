@@ -33,6 +33,16 @@ var terrenos: Array = []
 var duenos := {}
 ## Diccionario celda (Vector2i) -> Unidad
 var unidades := {}
+## Captura a medias: celda -> [fracción 0..1, equipo que captura]
+var progreso_captura := {}
+## Capa que se dibuja encima de las unidades: banderas de dueño y barras de captura.
+var _marcas := Marcas.new()
+
+
+func _ready() -> void:
+	_marcas.mapa = self
+	_marcas.z_index = 5
+	add_child(_marcas)
 
 
 static func letra_a_terreno(letra: String) -> String:
@@ -62,6 +72,7 @@ func cargar_desde_texto(lineas: Array) -> void:
 	unidades.clear()
 	duenos.clear()
 	terrenos.clear()
+	progreso_captura.clear()
 	alto = lineas.size()
 	ancho = lineas[0].length()
 	for y in alto:
@@ -74,6 +85,7 @@ func cargar_desde_texto(lineas: Array) -> void:
 				duenos[Vector2i(x, y)] = dueno
 		terrenos.append(fila)
 	queue_redraw()
+	_marcas.queue_redraw()
 
 
 # ---------------------------------------------------------------- consultas
@@ -96,6 +108,16 @@ func cambiar_dueno(celda: Vector2i, equipo: String) -> void:
 	if duenos.has(celda):
 		duenos[celda] = equipo
 		queue_redraw()
+		_marcas.queue_redraw()
+
+
+## Barra de captura sobre un edificio (fracción 0 = sin barra).
+func mostrar_progreso(celda: Vector2i, fraccion: float, equipo: String) -> void:
+	if fraccion <= 0.0:
+		progreso_captura.erase(celda)
+	else:
+		progreso_captura[celda] = [fraccion, equipo]
+	_marcas.queue_redraw()
 
 
 ## Edificios (cuarteles, bases y ciudades) que pertenecen a un equipo.
@@ -253,3 +275,25 @@ func _dibujar_tile(celda: Vector2i, tile: Vector2i) -> void:
 	draw_texture_rect_region(Datos.ATLAS,
 		Rect2(Vector2(celda * t), Vector2(t, t)),
 		Rect2(Vector2(tile * t), Vector2(t, t)))
+
+
+## Dibuja, encima de las unidades, una banderita del color del dueño en cada edificio
+## (así se ve de quién es aunque haya una unidad encima) y la barra de captura.
+class Marcas extends Node2D:
+	const TILE_BANDERA := Vector2i(14, 10)
+	const COLORES := {"azul": Color(0.35, 0.65, 1.0), "rojo": Color(1.0, 0.35, 0.3)}
+	var mapa: GameMap
+
+	func _draw() -> void:
+		var t := Datos.TAM_CASILLA
+		for c in mapa.duenos:
+			var dueno: String = mapa.duenos[c]
+			if COLORES.has(dueno):
+				draw_texture_rect_region(Datos.ATLAS, Rect2(Vector2(c * t) + Vector2(-2, -3), Vector2(10, 10)),
+					Rect2(Vector2(TILE_BANDERA * t), Vector2(t, t)), COLORES[dueno])
+		for c in mapa.progreso_captura:
+			var fraccion: float = mapa.progreso_captura[c][0]
+			var color: Color = COLORES.get(mapa.progreso_captura[c][1], Color.WHITE)
+			var base := Vector2(c * t) + Vector2(1, t - 4)
+			draw_rect(Rect2(base, Vector2(t - 2, 3)), Color(0, 0, 0, 0.75))
+			draw_rect(Rect2(base + Vector2(0.5, 0.5), Vector2((t - 3) * fraccion, 2)), color)

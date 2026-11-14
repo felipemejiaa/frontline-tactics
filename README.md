@@ -42,7 +42,7 @@ scripts/menu_principal.gd   Lógica del menú de inicio
 scripts/hud.gd          Barra de arriba, letrero de turno, menú de pausa y pantalla de victoria/derrota
 scripts/cinematica.gd   Cinemática de combate
 scripts/efectos.gd      Chispas y explosiones (partículas)
-scripts/sonido.gd       Efectos de sonido y música (`Sonido.reproducir("disparo")`)
+scripts/sonido.gd       Efectos de sonido (`Sonido.reproducir("disparo")`)
 assets/sonidos/         Sonidos generados con herramientas/generar_sonidos.py
 ui/tema.tres            Estilo de botones y paneles (se aplica a todo el juego)
 scripts/datos.gd        Datos de terrenos y unidades (precios, vida, movimiento...)
@@ -71,7 +71,7 @@ assets/kenney_tiny_battle/  Gráficos de Kenney.nl (licencia CC0)
 | IA del enemigo | Persona 2 | 🟡 Base lista (falta compra de unidades) |
 | Turnos, combate, créditos, captura y victoria | Persona 1 | ✅ Listo |
 | Menú principal, pausa y pantalla de fin | Persona 2 | ✅ Listo |
-| Animaciones, sonido y música | Persona 2 | ✅ Listo |
+| Animaciones y sonido | Persona 2 | ✅ Listo |
 | Exportar APK | Persona 3 | ⏳ Pendiente |
 
 ### Para la persona 1 (reglas)

@@ -99,9 +99,13 @@ func _initialize() -> void:
 	revisar(reglas.puede_capturar(capturadora), "la infantería puede capturar la ciudad")
 	reglas.capturar(capturadora)
 	revisar(mapa.dueno_en(Vector2i(3, 0)) == "neutral", "con 10 de vida no alcanza en un turno")
+	revisar(mapa.progreso_captura.has(Vector2i(3, 0)) and is_equal_approx(mapa.progreso_captura[Vector2i(3, 0)][0], 0.5),
+		"la barra de captura muestra la mitad")
 	capturadora.reiniciar_turno()
 	reglas.capturar(capturadora)
 	revisar(mapa.dueno_en(Vector2i(3, 0)) == "azul", "al segundo turno la ciudad es azul")
+	revisar(not mapa.progreso_captura.has(Vector2i(3, 0)), "al terminar, la barra desaparece")
+	revisar(mapa.ingreso_de("azul") == 3 * 500, "cada edificio da $500 (3 edificios = $1500)")
 
 	print("Compra")
 	revisar(not reglas.comprar("tanque", "azul"), "sin créditos suficientes no se puede comprar un tanque")
