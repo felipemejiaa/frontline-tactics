@@ -101,17 +101,16 @@ text = "Cómo jugar"
 horizontal_alignment = 1
 
 [node name="Reglas" type="Label" parent="Ayuda/Centro/Panel/Lista"]
-custom_minimum_size = Vector2(380, 0)
+custom_minimum_size = Vector2(440, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 10
-text = "• Toca una de tus unidades (azules) para ver a dónde se puede mover, y toca una casilla para moverla. Los enemigos marcados en rojo se pueden atacar: tócalos y tu unidad va y ataca.
-• Cada unidad le gana a otra, como piedra, papel o tijera:
-    Infantería → le gana a la Artillería
-    Tanque → le gana a la Infantería
-    Artillería → le gana al Tanque (ataca de lejos)
-• Tanques y artillería no pueden entrar a bosques ni montañas. Nadie cruza el agua.
-• Lleva infantería a una ciudad y captúrala: cada edificio tuyo te da $500 por turno. Tarda 2 turnos (mira la barrita). Compra unidades con el botón Tienda.
-• Gana quien destruya todo el ejército rival o llegue a su cuartel general."
+theme_override_font_sizes/font_size = 9
+text = "• Toca una unidad azul para ver a dónde se mueve. Arrastra el dedo para mover el mapa.
+• Enemigos con borde rojo: tócalos para ver el daño estimado, y otra vez para atacar.
+• Ventajas: Infantería > Artillería > Tanque > Infantería. Helicóptero > Tanque y Artillería. Antiaérea > Helicóptero. Torreta (junto a tu cuartel) > Infantería y Tanque.
+• Captura ciudades con infantería (2 turnos): dan $500 por turno, curan +2 y suben tu población (5 + 1 por edificio).
+• Destruir enemigos da estrellas de veteranía (+10% de daño). Rodear al enemigo da +15% por aliado.
+• Botón Peligro: muestra dónde te pueden atacar. Tienda: unidades y habilidades.
+• Ganas si capturas el cuartel enemigo o lo dejas sin unidades y sin forma de comprar."
 autowrap_mode = 3
 
 [node name="BotonVolver" type="Button" parent="Ayuda/Centro/Panel/Lista"]

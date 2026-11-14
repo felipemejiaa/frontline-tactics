@@ -104,11 +104,12 @@ func _armar_lado(lado: String, info: Dictionary) -> void:
 		panel.add_child(deco)
 
 	var figuras: Array[Sprite2D] = []
-	var columna: int = Datos.UNIDADES[info["tipo"]]["columna"]
+	var tile := Datos.tile_unidad(info["tipo"], info["equipo"])
+	var en_el_aire: bool = Datos.UNIDADES[info["tipo"]].get("aerea", false)
 	for i in _cantidad_figuras(info["vida"]):
-		var s := _sprite(Vector2i(columna, Datos.FILA_EQUIPO[info["equipo"]]), not izq)
+		var s := _sprite(tile, not izq and not Datos.UNIDADES[info["tipo"]].get("construccion", false))
 		var p: Vector2 = FORMACION[i]
-		s.position = Vector2(p.x if izq else ANCHO_PANEL - p.x, p.y)
+		s.position = Vector2(p.x if izq else ANCHO_PANEL - p.x, p.y - (45.0 if en_el_aire else 0.0))
 		panel.add_child(s)
 		figuras.append(s)
 
@@ -123,7 +124,7 @@ func _armar_lado(lado: String, info: Dictionary) -> void:
 	barra.color = _color_vida(info["vida"])
 	panel.add_child(barra)
 	var nombre := Label.new()
-	nombre.text = Datos.UNIDADES[info["tipo"]]["nombre"]
+	nombre.text = info.get("nombre", Datos.UNIDADES[info["tipo"]]["nombre"])
 	nombre.position = Vector2(8, 4)
 	nombre.add_theme_font_size_override("font_size", 13)
 	nombre.add_theme_color_override("font_outline_color", Color.BLACK)

@@ -66,6 +66,9 @@ func _initialize() -> void:
 	revisar(main.get_node("%PanelInfo").visible, "se muestra el panel de información")
 	var vida_antes := vecino.vida
 	main.tocar_celda(vecino.celda)
+	revisar(vecino.vida == vida_antes and main.get_node("%PanelInfo").visible and "Harás" in main.get_node("%TextoInfo").text,
+		"el primer toque muestra la vista previa del daño sin atacar")
+	main.tocar_celda(vecino.celda)
 	await create_timer(0.3).timeout
 	revisar(not is_instance_valid(vecino) or vecino.vida < vida_antes, "tocar al enemigo lo ataca directamente")
 	revisar(mi_inf.ya_ataco and main.estado == main.Estado.LIBRE and not main.menu.visible, "después del ataque no queda ningún menú abierto")
@@ -140,6 +143,11 @@ func _initialize() -> void:
 	print("Victoria")
 	for u in mapa.unidades_de("rojo"):
 		mapa.eliminar_unidad(u)
+	await process_frame
+	reglas.revisar_victoria()
+	revisar(not main.juego_terminado, "sin unidades pero con base y dinero, el rojo todavía no pierde")
+	reglas.creditos["rojo"] = 0
+	reglas.multiplicador_ingreso["rojo"] = 0.0
 	reglas.revisar_victoria()
 	await process_frame
 	revisar(main.juego_terminado and main.get_node("%PantallaFin").visible and main.get_node("%TituloFin").text == "¡VICTORIA!", "sin unidades rojas sale la pantalla de victoria")

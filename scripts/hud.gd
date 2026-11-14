@@ -7,6 +7,7 @@ extends CanvasLayer
 signal terminar_turno_pedido
 signal nuevo_mapa_pedido
 signal tienda_pedida
+signal peligro_alternado
 
 const ESCENA_MENU := "res://scenes/menu_principal.tscn"
 
@@ -15,6 +16,7 @@ func _ready() -> void:
 	%BotonTerminar.pressed.connect(func(): terminar_turno_pedido.emit())
 	%BotonMenu.pressed.connect(abrir_pausa)
 	%BotonTienda.pressed.connect(func(): tienda_pedida.emit())
+	%BotonPeligro.pressed.connect(func(): peligro_alternado.emit())
 	%BotonCinematicas.pressed.connect(_alternar_cinematicas)
 	%BotonSonido.pressed.connect(_alternar_sonido)
 	_actualizar_opciones()
@@ -38,6 +40,7 @@ func bloquear_botones(bloquear: bool) -> void:
 	%BotonTerminar.disabled = bloquear
 	%BotonMenu.disabled = bloquear
 	%BotonTienda.disabled = bloquear
+	%BotonPeligro.disabled = bloquear
 
 
 ## Panel con la información de la unidad seleccionada, del lado contrario a ella.
@@ -115,7 +118,19 @@ func cerrar_pausa() -> void:
 
 
 ## Persona 1: llamar esto (a través de main.terminar_partida) cuando alguien gane.
-func mostrar_fin(ganador: String) -> void:
+## Texto de la barra de arriba (turno, dinero, población).
+func mostrar_estado(texto: String) -> void:
+	%EtiquetaTurno.text = texto
+
+
+## El botón Peligro se ve "presionado" mientras la zona está activa.
+func marcar_peligro(activo: bool) -> void:
+	%BotonPeligro.modulate = Color(1, 0.55, 0.5) if activo else Color.WHITE
+
+
+func mostrar_fin(ganador: String, estadisticas := "") -> void:
+	%EstadisticasFin.text = estadisticas
+	%EstadisticasFin.visible = estadisticas != ""
 	%MenuPausa.hide()
 	Sonido.reproducir("victoria" if ganador == "azul" else "derrota")
 	if ganador == "azul":

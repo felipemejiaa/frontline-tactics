@@ -37,12 +37,25 @@ var unidades := {}
 var progreso_captura := {}
 ## Capa que se dibuja encima de las unidades: banderas de dueño y barras de captura.
 var _marcas := Marcas.new()
+## Zona de peligro: casillas que el enemigo puede atacar el próximo turno.
+var zona_peligro := {}
+var _capa_peligro := CapaPeligro.new()
+## Niebla (estilo Age of Empires): lo explorado y lo que se ve ahora.
+var niebla_activa := false
+var explorado := {}
+var visible_ahora := {}
+var _capa_niebla := CapaNiebla.new()
 
 
 func _ready() -> void:
 	_marcas.mapa = self
 	_marcas.z_index = 5
 	add_child(_marcas)
+	_capa_peligro.mapa = self
+	add_child(_capa_peligro)
+	_capa_niebla.mapa = self
+	_capa_niebla.z_index = 6
+	add_child(_capa_niebla)
 
 
 static func letra_a_terreno(letra: String) -> String:
@@ -73,6 +86,9 @@ func cargar_desde_texto(lineas: Array) -> void:
 	duenos.clear()
 	terrenos.clear()
 	progreso_captura.clear()
+	zona_peligro.clear()
+	explorado.clear()
+	visible_ahora.clear()
 	alto = lineas.size()
 	ancho = lineas[0].length()
 	for y in alto:
@@ -86,6 +102,8 @@ func cargar_desde_texto(lineas: Array) -> void:
 		terrenos.append(fila)
 	queue_redraw()
 	_marcas.queue_redraw()
+	_capa_peligro.queue_redraw()
+	_capa_niebla.queue_redraw()
 
 
 # ---------------------------------------------------------------- consultas
@@ -198,8 +216,11 @@ func eliminar_unidad(u: Unidad) -> void:
 ## Usa Dijkstra (un BFS que tiene en cuenta que cada terreno cuesta distinto).
 ## Devuelve {"destinos": Array[Vector2i], "anterior": Dictionary}
 ## "anterior" sirve para reconstruir el camino con camino_hasta().
-func calcular_alcance(u: Unidad) -> Dictionary:
+## "ignorar": casillas con enemigos escondidos en la niebla, que se tratan como vacías
+## (si la unidad intenta pasar por ahí, cae en una emboscada).
+func calcular_alcance(u: Unidad, ignorar := {}) -> Dictionary:
 	var datos: Dictionary = Datos.UNIDADES[u.tipo]
+	var movimiento := u.movimiento()
 	var costos := {u.celda: 0}
 	var anterior := {u.celda: u.celda}
 	var pendientes: Array[Vector2i] = [u.celda]
@@ -220,10 +241,10 @@ func calcular_alcance(u: Unidad) -> Dictionary:
 			if paso < 0:
 				continue  # terreno prohibido para esta unidad
 			var otra := unidad_en(vecino)
-			if otra != null and otra.equipo != u.equipo:
+			if otra != null and otra.equipo != u.equipo and not ignorar.has(vecino):
 				continue  # los enemigos bloquean el paso
 			var nuevo: int = costos[actual] + paso
-			if nuevo > datos["movimiento"]:
+			if nuevo > movimiento:
 				continue
 			if not costos.has(vecino) or nuevo < costos[vecino]:
 				costos[vecino] = nuevo
@@ -235,7 +256,7 @@ func calcular_alcance(u: Unidad) -> Dictionary:
 	var destinos: Array[Vector2i] = []
 	for celda in anterior:
 		var ocupante := unidad_en(celda)
-		if ocupante == null or ocupante == u:
+		if ocupante == null or ocupante == u or ignorar.has(celda):
 			destinos.append(celda)
 	return {"destinos": destinos, "anterior": anterior}
 
@@ -297,3 +318,86 @@ class Marcas extends Node2D:
 			var base := Vector2(c * t) + Vector2(1, t - 4)
 			draw_rect(Rect2(base, Vector2(t - 2, 3)), Color(0, 0, 0, 0.75))
 			draw_rect(Rect2(base + Vector2(0.5, 0.5), Vector2((t - 3) * fraccion, 2)), color)
+
+
+# ---------------------------------------------------------------- niebla y peligro
+
+func mostrar_peligro(celdas: Dictionary) -> void:
+	zona_peligro = celdas
+	_capa_peligro.queue_redraw()
+
+
+## Calcula qué ve un equipo: alrededor de sus unidades (según su visión) y de sus edificios.
+## Devuelve true si cambió algo.
+func actualizar_vision(equipo: String, revelar_todo := false) -> bool:
+	var nuevo := {}
+	if revelar_todo or not niebla_activa:
+		for y in alto:
+			for x in ancho:
+				nuevo[Vector2i(x, y)] = true
+	else:
+		for u in unidades_de(equipo):
+			_marcar_radio(nuevo, u.celda, u.datos()["vision"])
+		for c in edificios_de(equipo):
+			_marcar_radio(nuevo, c, 2 if terreno_en(c) == "cuartel" else 1)
+	for c in nuevo:
+		explorado[c] = true
+	var cambio := nuevo.size() != visible_ahora.size() or nuevo.keys() != visible_ahora.keys()
+	visible_ahora = nuevo
+	# Esconder las unidades enemigas que no se ven.
+	for u in unidades.values():
+		u.visible = u.equipo == equipo or visible_ahora.has(u.celda)
+	if cambio:
+		_capa_niebla.queue_redraw()
+	return cambio
+
+
+func se_ve(celda: Vector2i) -> bool:
+	return not niebla_activa or visible_ahora.has(celda)
+
+
+## Enemigos escondidos en la niebla (para tratarlos como vacíos al calcular movimiento).
+func ocultos_para(equipo: String) -> Dictionary:
+	var ocultos := {}
+	if niebla_activa:
+		for u in unidades.values():
+			if u.equipo != equipo and not visible_ahora.has(u.celda):
+				ocultos[u.celda] = true
+	return ocultos
+
+
+func _marcar_radio(conjunto: Dictionary, centro: Vector2i, radio: int) -> void:
+	for dy in range(-radio, radio + 1):
+		for dx in range(-radio, radio + 1):
+			var c := centro + Vector2i(dx, dy)
+			if absi(dx) + absi(dy) <= radio and en_mapa(c):
+				conjunto[c] = true
+
+
+## Rojo suave con borde en las casillas que el enemigo puede atacar.
+class CapaPeligro extends Node2D:
+	var mapa: GameMap
+
+	func _draw() -> void:
+		var t := Datos.TAM_CASILLA
+		for c in mapa.zona_peligro:
+			var r := Rect2(Vector2(c * t), Vector2(t, t))
+			draw_rect(r, Color(1, 0.15, 0.1, 0.22))
+			draw_line(r.position, r.position + Vector2(t, t), Color(1, 0.2, 0.1, 0.35), 1.0)
+
+
+## Negro donde nunca has explorado, gris donde exploraste pero ahora no ves.
+class CapaNiebla extends Node2D:
+	var mapa: GameMap
+
+	func _draw() -> void:
+		if not mapa.niebla_activa:
+			return
+		var t := Datos.TAM_CASILLA
+		for y in mapa.alto:
+			for x in mapa.ancho:
+				var c := Vector2i(x, y)
+				if mapa.visible_ahora.has(c):
+					continue
+				var color := Color(0.05, 0.05, 0.08, 0.5) if mapa.explorado.has(c) else Color(0.02, 0.02, 0.04, 1.0)
+				draw_rect(Rect2(Vector2(c * t), Vector2(t, t)), color)

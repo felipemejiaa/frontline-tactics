@@ -33,6 +33,22 @@ Juego de estrategia por turnos para Android, inspirado en Advanced Wars. Hecho e
 
 El número es cuántos puntos de movimiento gasta entrar a esa casilla.
 
+## Estrategia
+
+- **Nueva partida:** se elige dificultad (Fácil, Normal, Difícil) y niebla de guerra (Sí/No).
+- **Mapa de 36×20:** se arrastra con el dedo para moverlo.
+- **Unidades:** Infantería, Tanque, Artillería, Helicóptero (vuela), Antiaérea y Torreta (solo junto a tu cuartel, no se mueve).
+- **Ventajas:** ver `Datos.VENTAJAS`.
+- **Población:** máximo 5 unidades + 1 por cada edificio tuyo.
+- **Curación:** +2 de vida al empezar el turno en un edificio propio.
+- **Veteranía:** cada unidad destruida da una estrella (+10 % de daño, máximo 3).
+- **Flanqueo:** +15 % de daño por cada aliado pegado al enemigo.
+- **Vista previa:** primer toque en un enemigo muestra el daño estimado; el segundo ataca.
+- **Peligro:** muestra las casillas que el enemigo puede atacar.
+- **Habilidades** (Tienda): Reparación, Bombardeo, Marcha forzada y Radar (con niebla). Cada uso sube el precio.
+- **Niebla:** negro = sin explorar, gris = explorado sin vista. Pasar por donde hay un enemigo escondido es una emboscada.
+- **Victoria:** capturar el cuartel enemigo, o dejarlo sin unidades y sin forma de comprar.
+
 ## Estructura
 
 ```
@@ -45,7 +61,8 @@ scripts/efectos.gd      Chispas y explosiones (partículas)
 scripts/sonido.gd       Efectos de sonido (`Sonido.reproducir("disparo")`)
 assets/sonidos/         Sonidos generados con herramientas/generar_sonidos.py
 ui/tema.tres            Estilo de botones y paneles (se aplica a todo el juego)
-scripts/datos.gd        Datos de terrenos y unidades (precios, vida, movimiento...)
+scripts/datos.gd        Datos de terrenos, unidades, ventajas, habilidades y dificultades
+scripts/config.gd       Opciones de la partida (dificultad y niebla)
 scripts/game_map.gd     Mapa, edificios y dueños, posiciones de las unidades y cálculo de movimiento
 scripts/generador_mapa.gd  Mapas aleatorios simétricos (26×15) con ciudades
 scripts/unidad.gd       Una unidad: tipo, equipo, vida, si ya se movió
@@ -99,6 +116,7 @@ godot --headless --path . --script res://tests/prueba_generador.gd
 godot --headless --path . --script res://tests/prueba_menus.gd
 godot --headless --path . --script res://tests/prueba_reglas.gd
 godot --headless --path . --script res://tests/prueba_animaciones.gd
+godot --headless --path . --script res://tests/prueba_estrategia.gd
 ```
 
 ## Créditos

@@ -1,10 +1,13 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/game_map.gd" id="2_map"]
 [ext_resource type="Script" path="res://scripts/resaltado.gd" id="3_res"]
 [ext_resource type="Script" path="res://scripts/ia.gd" id="4_ia"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="5_hud"]
+
+[sub_resource type="SystemFont" id="fuente_mono"]
+font_names = PackedStringArray("Monospace", "Courier New", "DejaVu Sans Mono")
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -21,21 +24,35 @@ script = ExtResource("4_ia")
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("5_hud")
 
+[node name="FondoBarra" type="ColorRect" parent="HUD"]
+offset_right = 480.0
+offset_bottom = 30.0
+color = Color(0.08, 0.09, 0.13, 0.95)
+
 [node name="EtiquetaTurno" type="Label" parent="HUD"]
 unique_name_in_owner = true
-offset_left = 32.0
-offset_top = 5.0
-offset_right = 240.0
-offset_bottom = 25.0
-theme_override_font_sizes/font_size = 10
+offset_left = 6.0
+offset_top = 2.0
+offset_right = 186.0
+offset_bottom = 28.0
+theme_override_font_sizes/font_size = 9
 text = "Turno: Azul"
 vertical_alignment = 1
 
+[node name="BotonPeligro" type="Button" parent="HUD"]
+unique_name_in_owner = true
+offset_left = 186.0
+offset_top = 5.0
+offset_right = 238.0
+offset_bottom = 25.0
+theme_override_font_sizes/font_size = 11
+text = "Peligro"
+
 [node name="BotonTienda" type="Button" parent="HUD"]
 unique_name_in_owner = true
-offset_left = 244.0
+offset_left = 242.0
 offset_top = 5.0
-offset_right = 296.0
+offset_right = 294.0
 offset_bottom = 25.0
 theme_override_font_sizes/font_size = 11
 text = "Tienda"
@@ -58,18 +75,18 @@ text = "Info"
 
 [node name="BotonMenu" type="Button" parent="HUD"]
 unique_name_in_owner = true
-offset_left = 300.0
+offset_left = 298.0
 offset_top = 5.0
-offset_right = 352.0
+offset_right = 350.0
 offset_bottom = 25.0
 theme_override_font_sizes/font_size = 11
 text = "Menú"
 
 [node name="BotonTerminar" type="Button" parent="HUD"]
 unique_name_in_owner = true
-offset_left = 358.0
+offset_left = 354.0
 offset_top = 5.0
-offset_right = 448.0
+offset_right = 474.0
 offset_bottom = 25.0
 theme_override_font_sizes/font_size = 11
 text = "Terminar turno"
@@ -166,6 +183,13 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 10
 text = "Destruiste al ejército rojo."
 horizontal_alignment = 1
+
+[node name="EstadisticasFin" type="Label" parent="HUD/PantallaFin/Centro/Panel/Lista"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_fonts/font = SubResource("fuente_mono")
+theme_override_font_sizes/font_size = 9
+text = "Estadísticas"
 
 [node name="BotonJugarOtraVez" type="Button" parent="HUD/PantallaFin/Centro/Panel/Lista"]
 unique_name_in_owner = true

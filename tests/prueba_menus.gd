@@ -36,12 +36,23 @@ func _initialize() -> void:
 	current_scene = menu
 	await process_frame
 	await process_frame
-	revisar(menu.mapa_fondo.unidades.size() == 6, "hay un mapa con unidades de fondo")
+	revisar(menu.mapa_fondo.unidades.size() == 8, "hay un mapa con unidades de fondo")
 	await tocar(centro_de(menu.get_node("%BotonComoJugar")))
 	revisar(menu.ayuda.visible, "Cómo jugar abre la ayuda")
 	await tocar(centro_de(menu.get_node("%BotonVolver")))
 	revisar(not menu.ayuda.visible, "Volver cierra la ayuda")
 	await tocar(centro_de(menu.get_node("%BotonJugar")))
+	await process_frame
+	revisar(menu._panel_partida != null and menu._panel_partida.visible, "Jugar abre el panel de nueva partida")
+	var dificultad_antes := Config.dificultad
+	await tocar(centro_de(menu._boton_dificultad))
+	revisar(Config.dificultad != dificultad_antes, "el botón de dificultad cambia la dificultad")
+	Config.dificultad = "normal"
+	var empezar: Button = null
+	for b in menu._panel_partida.find_children("*", "Button", true, false):
+		if b.text == "¡Empezar!":
+			empezar = b
+	await tocar(centro_de(empezar))
 	for i in 5:
 		await process_frame
 	var main: Node = current_scene
@@ -51,7 +62,7 @@ func _initialize() -> void:
 	print("Partida")
 	var hud: HUD = main.hud
 	var unidad: Unidad = main.mapa.unidades_de("azul")[0]
-	var pos_unidad: Vector2 = main.mapa.position + main.mapa.celda_a_pos(unidad.celda)
+	var pos_unidad: Vector2 = main.get_canvas_transform() * main.mapa.celda_a_pos(unidad.celda)
 	await tocar(pos_unidad)
 	revisar(main.seleccionada == unidad, "tocar una unidad en la pantalla la selecciona")
 	main.deseleccionar()
