@@ -104,13 +104,13 @@ horizontal_alignment = 1
 custom_minimum_size = Vector2(380, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 10
-text = "• Toca una de tus unidades (azules) para ver a dónde se puede mover, y toca una casilla para moverla.
+text = "• Toca una de tus unidades (azules) para ver a dónde se puede mover, y toca una casilla para moverla. Los enemigos marcados en rojo se pueden atacar: tócalos y tu unidad va y ataca.
 • Cada unidad le gana a otra, como piedra, papel o tijera:
     Infantería → le gana a la Artillería
     Tanque → le gana a la Infantería
     Artillería → le gana al Tanque (ataca de lejos)
 • Tanques y artillería no pueden entrar a bosques ni montañas. Nadie cruza el agua.
-• Cada ciudad tuya te da créditos al empezar el turno. Con los créditos compras unidades en tu base.
+• Lleva infantería a una ciudad y captúrala: cada edificio tuyo te da $1000 por turno. Compra unidades con el botón Tienda.
 • Gana quien destruya todo el ejército rival o llegue a su cuartel general."
 autowrap_mode = 3
 

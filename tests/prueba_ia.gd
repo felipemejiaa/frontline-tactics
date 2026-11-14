@@ -39,6 +39,23 @@ func _initialize() -> void:
 	revisar(main.reglas.creditos["rojo"] < Reglas.CREDITOS_INICIALES + mapa.ingreso_de("rojo"), "la compra le costó créditos")
 	revisar(main.equipo_actual == "azul", "el turno volvió al jugador")
 
+	print("Compra justa")
+	main.reglas.creditos["rojo"] = 99999
+	var rojas_antes := mapa.unidades_de("rojo").size()
+	var azules: Array[Unidad] = mapa.unidades_de("azul")
+	while mapa.unidades_de("azul").size() >= rojas_antes:
+		mapa.eliminar_unidad(mapa.unidades_de("azul")[0])
+	ia._comprar_unidad()
+	revisar(mapa.unidades_de("rojo").size() == rojas_antes, "con más unidades que el jugador, la IA no compra aunque tenga créditos")
+	mapa.crear_unidad("infanteria", "azul", Vector2i(0, 9))
+	mapa.crear_unidad("infanteria", "azul", Vector2i(1, 9))
+	mapa.crear_unidad("infanteria", "azul", Vector2i(2, 9))
+	var base_roja := mapa.buscar_edificio("base", "rojo")
+	if mapa.unidad_en(base_roja) != null:
+		mapa.mover_registro(mapa.unidad_en(base_roja), Vector2i(15, 9))
+	ia._comprar_unidad()
+	revisar(mapa.unidades_de("rojo").size() == rojas_antes + 1, "con menos unidades que el jugador, sí compra")
+
 	print("Ataque")
 	# Poner una infantería azul justo al lado del tanque rojo: el tanque le gana, debe atacarla.
 	var tanque_rojo: Unidad = null

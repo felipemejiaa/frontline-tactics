@@ -31,6 +31,10 @@ var reglas: Reglas
 var juego_terminado := false
 var unidad_menu: Unidad = null
 var objetivos_actuales: Array[Unidad] = []
+## Enemigos que la unidad seleccionada puede atacar este turno: celda del enemigo -> casilla desde donde atacar.
+var ataques_posibles := {}
+## true mientras una unidad se mueve para atacar (así no se abre el menú de acciones).
+var atacando_directo := false
 var menu: PanelContainer
 var caja_menu: VBoxContainer
 
@@ -41,6 +45,8 @@ func _ready() -> void:
 	reglas.partida_terminada.connect(_on_partida_terminada)
 	reglas.creditos_cambiados.connect(func(_e, _c): _actualizar_hud())
 	ia.ataque_elegido.connect(reglas.atacar)
+	reglas.unidad_atacada.connect(_mostrar_dano)
+	hud.tienda_pedida.connect(_on_tienda)
 	unidad_movida.connect(_on_unidad_movida)
 	_construir_interfaz()
 	hud.terminar_turno_pedido.connect(terminar_turno)
@@ -127,7 +133,10 @@ func tocar_celda(celda: Vector2i) -> void:
 			elif celda == reglas.celda_base(equipo_actual):
 				_abrir_compra()
 		Estado.SELECCIONADA:
-			if _puede_mover(seleccionada) and celda == seleccionada.celda:
+			if _puede_mover(seleccionada) and ataques_posibles.has(celda):
+				# Tocar un enemigo marcado en rojo: la unidad va y lo ataca.
+				_mover_y_atacar(seleccionada, ataques_posibles[celda], mapa.unidad_en(celda))
+			elif _puede_mover(seleccionada) and celda == seleccionada.celda:
 				# Tocar otra vez la unidad: se queda quieta y abre el menú de acciones.
 				var u := seleccionada
 				deseleccionar()
@@ -153,22 +162,99 @@ func _puede_mover(u: Unidad) -> bool:
 func seleccionar(u: Unidad) -> void:
 	seleccionada = u
 	alcance = mapa.calcular_alcance(u)
+	ataques_posibles = _calcular_ataques(u) if _puede_mover(u) else {}
 	var color := Resaltado.COLOR_MOVER if _puede_mover(u) else Resaltado.COLOR_ENEMIGO
-	resaltado.mostrar(alcance["destinos"], color, u.celda)
+	var marcados: Array[Vector2i] = []
+	marcados.assign(ataques_posibles.keys())
+	resaltado.mostrar(alcance["destinos"], color, u.celda, marcados)
+	hud.mostrar_info(_texto_info(u), u.celda.x < mapa.ancho / 2)
 	estado = Estado.SELECCIONADA
 
 
 func deseleccionar() -> void:
 	seleccionada = null
 	alcance = {}
+	ataques_posibles = {}
 	resaltado.limpiar()
+	hud.ocultar_info()
 	estado = Estado.LIBRE
+
+
+## Para cada enemigo que la unidad puede atacar este turno, elige desde qué casilla hacerlo:
+## primero quedarse quieta; si no, la casilla con más defensa y más cercana.
+func _calcular_ataques(u: Unidad) -> Dictionary:
+	var resultado := {}
+	if u.ya_ataco:
+		return resultado
+	var datos := u.datos()
+	var desde_posibles: Array[Vector2i] = alcance["destinos"]
+	if datos["rango_min"] > 1:
+		desde_posibles = [u.celda]  # la artillería no ataca después de moverse
+	for e in mapa.unidades_de(reglas.otro_equipo(u.equipo)):
+		var mejor := Vector2i(-1, -1)
+		var mejor_puntos := -INF
+		for d in desde_posibles:
+			var dist := mapa.distancia(d, e.celda)
+			if dist < datos["rango_min"] or dist > datos["rango_max"]:
+				continue
+			var puntos: float = Datos.TERRENOS[mapa.terreno_en(d)]["defensa"] * 10 - mapa.camino_hasta(alcance, d).size()
+			if d == u.celda:
+				puntos += 100
+			if puntos > mejor_puntos:
+				mejor_puntos = puntos
+				mejor = d
+		if mejor.x >= 0:
+			resultado[e.celda] = mejor
+	return resultado
+
+
+func _mover_y_atacar(u: Unidad, desde: Vector2i, objetivo: Unidad) -> void:
+	atacando_directo = true
+	if desde != u.celda:
+		await mover(u, desde)
+	else:
+		deseleccionar()
+	atacando_directo = false
+	u.ya_se_movio = true
+	reglas.atacar(u, objetivo)
+	estado = Estado.LIBRE
+
+
+func _texto_info(u: Unidad) -> String:
+	var d := u.datos()
+	var rango := str(d["rango_min"]) if d["rango_min"] == d["rango_max"] else "%d-%d" % [d["rango_min"], d["rango_max"]]
+	var gana: String = Datos.UNIDADES[Datos.LE_GANA_A[u.tipo]]["nombre"]
+	var texto := "%s (%s)\nVida %d/%d   Mov %d   Alcance %s\nLe gana a: %s" % [
+		d["nombre"], u.equipo, u.vida, d["vida_max"], d["movimiento"], rango, gana]
+	if not ataques_posibles.is_empty():
+		texto += "\nToca un enemigo en rojo para atacar"
+	return texto
+
+
+## Número de daño flotando sobre la unidad golpeada, y parpadeo.
+func _mostrar_dano(_atacante: Unidad, objetivo: Unidad, dano: int) -> void:
+	var etiqueta := Label.new()
+	etiqueta.text = "-%d" % dano
+	etiqueta.add_theme_font_size_override("font_size", 12)
+	etiqueta.add_theme_color_override("font_color", Color(1, 0.35, 0.3))
+	etiqueta.add_theme_color_override("font_outline_color", Color.BLACK)
+	etiqueta.add_theme_constant_override("outline_size", 4)
+	etiqueta.position = objetivo.position + Vector2(-6, -18)
+	etiqueta.z_index = 10
+	mapa.add_child(etiqueta)
+	var tween := etiqueta.create_tween()
+	tween.tween_property(etiqueta, "position:y", etiqueta.position.y - 10, 0.8)
+	tween.parallel().tween_property(etiqueta, "modulate:a", 0.0, 0.8).set_delay(0.3)
+	tween.tween_callback(etiqueta.queue_free)
+	if objetivo.vida > 0:
+		objetivo.destello()
 
 
 ## Mueve la unidad con animación. También la usa la IA.
 func mover(u: Unidad, destino: Vector2i) -> void:
 	estado = Estado.MOVIENDO
 	resaltado.limpiar()
+	hud.ocultar_info()
 	if destino != u.celda:
 		reglas.reiniciar_captura(u.celda)  # si se va de una ciudad a medias, pierde el avance
 	var alcance_u := alcance if seleccionada == u else mapa.calcular_alcance(u)
@@ -189,7 +275,7 @@ func mover(u: Unidad, destino: Vector2i) -> void:
 func _on_unidad_movida(u: Unidad) -> void:
 	if juego_terminado:
 		return
-	if turno_ia or u.equipo != "azul":
+	if turno_ia or u.equipo != "azul" or atacando_directo:
 		return  # la IA no usa el menú; ella decide si ataca o captura
 	_abrir_menu_unidad(u)
 
@@ -220,6 +306,10 @@ func _mostrar_menu(opciones: Array) -> void:
 		b.pressed.connect(o[1])
 		caja_menu.add_child(b)
 	menu.reset_size()
+	# Ponerlo en el lado contrario a la unidad, para no taparla.
+	var referencia: Vector2i = unidad_menu.celda if unidad_menu != null else reglas.celda_base(equipo_actual)
+	var a_la_derecha := referencia.x < mapa.ancho / 2
+	menu.position = Vector2(get_viewport_rect().size.x - menu.size.x - POS_MENU.x, POS_MENU.y) if a_la_derecha else POS_MENU
 	menu.visible = true
 
 
@@ -240,6 +330,10 @@ func _abrir_menu_unidad(u: Unidad) -> void:
 		opciones.append(["Atacar", _elegir_ataque])
 	if reglas.puede_capturar(u):
 		opciones.append(["Capturar", _accion_capturar])
+	if opciones.is_empty():
+		# No hay nada que elegir: la unidad termina sola, sin preguntar.
+		_accion_esperar()
+		return
 	opciones.append(["Esperar", _accion_esperar])
 	_mostrar_menu(opciones)
 
@@ -273,8 +367,17 @@ func _abrir_compra() -> void:
 		var d: Dictionary = Datos.UNIDADES[tipo]
 		var sin_plata: bool = reglas.creditos[equipo_actual] < d["precio"]
 		opciones.append(["%s  %d" % [d["nombre"], d["precio"]], _comprar.bind(tipo), sin_plata])
+	if mapa.unidad_en(reglas.celda_base(equipo_actual)) != null:
+		opciones = [["Base ocupada: mueve esa unidad", func(): pass, true]]
 	opciones.append(["Cerrar", _cerrar_menu])
 	_mostrar_menu(opciones)
+
+
+func _on_tienda() -> void:
+	if estado == Estado.SELECCIONADA:
+		deseleccionar()
+	if estado == Estado.LIBRE and not turno_ia and not juego_terminado:
+		_abrir_compra()
 
 
 func _comprar(tipo: String) -> void:

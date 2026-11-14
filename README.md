@@ -13,8 +13,10 @@ Juego de estrategia por turnos para Android, inspirado en Advanced Wars. Hecho e
 ## Cómo se juega (por ahora)
 
 - Toca una unidad azul: se resaltan en azul las casillas a donde puede moverse.
-- Toca una casilla resaltada: la unidad se mueve y aparece el menú **Atacar / Capturar / Esperar**. Tocar otra vez la unidad sin moverla también abre el menú.
-- Toca tu base para **comprar** unidades con tus créditos.
+- Toca una casilla resaltada: la unidad se mueve. Si tiene algo que hacer (atacar o capturar) aparece el menú; si no, termina sola.
+- Los enemigos con borde rojo se pueden atacar: tócalos y tu unidad va hasta ellos y ataca.
+- El número sobre una unidad es su vida (solo aparece si está herida). El daño varía ±1 por suerte.
+- **Tienda** (o tocar tu base): comprar unidades. La máquina nunca tiene más de una unidad por encima de ti.
 - Toca una unidad roja: se ve en rojo hasta dónde puede llegar.
 - **Terminar turno**: juega la máquina (rojo) y luego vuelve tu turno.
 - **Menú**: pausa con Continuar, Nuevo mapa y Menú principal. En Android el botón "atrás" también abre la pausa.

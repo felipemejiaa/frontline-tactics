@@ -17,6 +17,7 @@ const MULT_VENTAJA := 1.5       # piedra-papel-tijera a favor
 const MULT_DESVENTAJA := 0.5    # en contra
 const DEFENSA_POR_NIVEL := 0.1  # cada nivel de defensa del terreno quita 10 %
 const PUNTOS_PARA_CAPTURAR := 20
+const SUERTE := 1               # el daño real varía entre -1 y +1 del estimado
 const TIPOS_EDIFICIO := ["cuartel", "base", "ciudad"]
 
 var mapa: GameMap
@@ -106,14 +107,14 @@ func calcular_dano(atacante: Unidad, objetivo: Unidad) -> int:
 func atacar(atacante: Unidad, objetivo: Unidad) -> void:
 	if terminada or atacante.ya_ataco or not puede_atacar(atacante, objetivo):
 		return
-	var dano := calcular_dano(atacante, objetivo)
+	var dano := _con_suerte(calcular_dano(atacante, objetivo))
 	objetivo.vida -= dano
 	unidad_atacada.emit(atacante, objetivo, dano)
 	print("%s %s hace %d de daño a %s %s" % [atacante.equipo, atacante.tipo, dano, objetivo.equipo, objetivo.tipo])
 	if objetivo.vida <= 0:
 		_quitar(objetivo)
 	elif puede_atacar(objetivo, atacante):  # contraataque
-		var contra := calcular_dano(objetivo, atacante)
+		var contra := _con_suerte(calcular_dano(objetivo, atacante))
 		atacante.vida -= contra
 		unidad_atacada.emit(objetivo, atacante, contra)
 		if atacante.vida <= 0:
@@ -121,6 +122,11 @@ func atacar(atacante: Unidad, objetivo: Unidad) -> void:
 	if is_instance_valid(atacante) and atacante.vida > 0:
 		marcar_lista(atacante)
 	revisar_victoria()
+
+
+## Un poco de azar para que no todos los ataques sean idénticos (nunca menos de 1).
+func _con_suerte(dano: int) -> int:
+	return maxi(1, dano + randi_range(-SUERTE, SUERTE))
 
 
 func _quitar(u: Unidad) -> void:

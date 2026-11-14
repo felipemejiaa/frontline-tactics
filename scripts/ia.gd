@@ -48,7 +48,9 @@ func _jugar_unidad(u: Unidad) -> void:
 
 ## Compra una unidad: la que le gana al tipo de enemigo más común; si no alcanza, infantería.
 func _comprar_unidad() -> void:
-	if mapa.unidades_de(equipo).size() >= MAX_UNIDADES:
+	var mias := mapa.unidades_de(equipo).size()
+	# Para que sea justo: nunca más de una unidad por encima del jugador.
+	if mias >= MAX_UNIDADES or mias > mapa.unidades_de(_equipo_rival()).size():
 		return
 	var conteo := {}
 	for r in mapa.unidades_de(_equipo_rival()):

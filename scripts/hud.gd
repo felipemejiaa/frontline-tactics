@@ -6,6 +6,7 @@ extends CanvasLayer
 
 signal terminar_turno_pedido
 signal nuevo_mapa_pedido
+signal tienda_pedida
 
 const ESCENA_MENU := "res://scenes/menu_principal.tscn"
 
@@ -13,6 +14,7 @@ const ESCENA_MENU := "res://scenes/menu_principal.tscn"
 func _ready() -> void:
 	%BotonTerminar.pressed.connect(func(): terminar_turno_pedido.emit())
 	%BotonMenu.pressed.connect(abrir_pausa)
+	%BotonTienda.pressed.connect(func(): tienda_pedida.emit())
 	%BotonContinuar.pressed.connect(cerrar_pausa)
 	%BotonNuevoMapa.pressed.connect(_pedir_nuevo_mapa)
 	%BotonMenuPrincipal.pressed.connect(ir_al_menu_principal)
@@ -24,7 +26,7 @@ func _ready() -> void:
 func mostrar_turno(equipo: String, creditos: Dictionary = {}) -> void:
 	var texto := "Turno: " + ("Azul" if equipo == "azul" else "Rojo")
 	if not creditos.is_empty():
-		texto += "   |   Azul: %d   Rojo: %d" % [creditos.get("azul", 0), creditos.get("rojo", 0)]
+		texto += "  |  Azul: $%d  Rojo: $%d" % [creditos.get("azul", 0), creditos.get("rojo", 0)]
 	%EtiquetaTurno.text = texto
 
 
@@ -32,6 +34,21 @@ func mostrar_turno(equipo: String, creditos: Dictionary = {}) -> void:
 func bloquear_botones(bloquear: bool) -> void:
 	%BotonTerminar.disabled = bloquear
 	%BotonMenu.disabled = bloquear
+	%BotonTienda.disabled = bloquear
+
+
+## Panel con la información de la unidad seleccionada, del lado contrario a ella.
+func mostrar_info(texto: String, a_la_derecha: bool) -> void:
+	%TextoInfo.text = texto
+	var panel: Control = %PanelInfo
+	panel.reset_size()
+	var ancho_pantalla := panel.get_viewport_rect().size.x
+	panel.position = Vector2(ancho_pantalla - panel.size.x - 6 if a_la_derecha else 6.0, 270 - panel.size.y - 6)
+	panel.show()
+
+
+func ocultar_info() -> void:
+	%PanelInfo.hide()
 
 
 func hay_menu_abierto() -> bool:

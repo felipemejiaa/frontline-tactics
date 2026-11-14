@@ -25,11 +25,36 @@ script = ExtResource("5_hud")
 unique_name_in_owner = true
 offset_left = 32.0
 offset_top = 5.0
+offset_right = 240.0
+offset_bottom = 25.0
+theme_override_font_sizes/font_size = 10
+text = "Turno: Azul"
+vertical_alignment = 1
+
+[node name="BotonTienda" type="Button" parent="HUD"]
+unique_name_in_owner = true
+offset_left = 244.0
+offset_top = 5.0
 offset_right = 296.0
 offset_bottom = 25.0
 theme_override_font_sizes/font_size = 11
-text = "Turno: Azul"
-vertical_alignment = 1
+text = "Tienda"
+
+[node name="PanelInfo" type="PanelContainer" parent="HUD"]
+unique_name_in_owner = true
+visible = false
+modulate = Color(1, 1, 1, 0.92)
+offset_left = 6.0
+offset_top = 200.0
+offset_right = 150.0
+offset_bottom = 264.0
+mouse_filter = 2
+
+[node name="TextoInfo" type="Label" parent="HUD/PanelInfo"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 9
+text = "Info"
 
 [node name="BotonMenu" type="Button" parent="HUD"]
 unique_name_in_owner = true
