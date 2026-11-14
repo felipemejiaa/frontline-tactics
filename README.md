@@ -19,7 +19,8 @@ Juego de estrategia por turnos para Android, inspirado en Advanced Wars. Hecho e
 - **Tienda** (o tocar tu base): comprar unidades. La máquina nunca tiene más de una unidad por encima de ti.
 - Toca una unidad roja: se ve en rojo hasta dónde puede llegar.
 - **Terminar turno**: juega la máquina (rojo) y luego vuelve tu turno.
-- **Menú**: pausa con Continuar, Nuevo mapa y Menú principal. En Android el botón "atrás" también abre la pausa.
+- **Ataques animados:** mini cinemática estilo Advanced Wars (tocar para saltar) o animación rápida en el mapa. Se elige en la pausa.
+- **Menú**: pausa con Continuar, Nuevo mapa, Cinemáticas Sí/No, Sonido Sí/No y Menú principal. En Android el botón "atrás" también abre la pausa.
 
 ### Terreno
 
@@ -38,7 +39,11 @@ El número es cuántos puntos de movimiento gasta entrar a esa casilla.
 scenes/menu_principal.tscn  Menú de inicio (Jugar, Cómo jugar, Salir)
 scenes/main.tscn        La partida (mapa + HUD + menú de pausa + pantalla de fin)
 scripts/menu_principal.gd   Lógica del menú de inicio
-scripts/hud.gd          Barra de arriba, menú de pausa y pantalla de victoria/derrota
+scripts/hud.gd          Barra de arriba, letrero de turno, menú de pausa y pantalla de victoria/derrota
+scripts/cinematica.gd   Cinemática de combate
+scripts/efectos.gd      Chispas y explosiones (partículas)
+scripts/sonido.gd       Efectos de sonido y música (`Sonido.reproducir("disparo")`)
+assets/sonidos/         Sonidos generados con herramientas/generar_sonidos.py
 ui/tema.tres            Estilo de botones y paneles (se aplica a todo el juego)
 scripts/datos.gd        Datos de terrenos y unidades (precios, vida, movimiento...)
 scripts/game_map.gd     Mapa, edificios y dueños, posiciones de las unidades y cálculo de movimiento
@@ -66,7 +71,8 @@ assets/kenney_tiny_battle/  Gráficos de Kenney.nl (licencia CC0)
 | IA del enemigo | Persona 2 | 🟡 Base lista (falta compra de unidades) |
 | Turnos, combate, créditos, captura y victoria | Persona 1 | ✅ Listo |
 | Menú principal, pausa y pantalla de fin | Persona 2 | ✅ Listo |
-| Sonido y exportar APK | Persona 3 | ⏳ Pendiente |
+| Animaciones, sonido y música | Persona 2 | ✅ Listo |
+| Exportar APK | Persona 3 | ⏳ Pendiente |
 
 ### Para la persona 1 (reglas)
 - `main.gd` emite la señal `unidad_movida(unidad)` cuando una unidad termina de moverse: ahí va el menú *Atacar / Esperar*.
@@ -92,6 +98,7 @@ godot --headless --path . --script res://tests/prueba_ia.gd
 godot --headless --path . --script res://tests/prueba_generador.gd
 godot --headless --path . --script res://tests/prueba_menus.gd
 godot --headless --path . --script res://tests/prueba_reglas.gd
+godot --headless --path . --script res://tests/prueba_animaciones.gd
 ```
 
 ## Créditos

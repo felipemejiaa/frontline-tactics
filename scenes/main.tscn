@@ -114,6 +114,18 @@ custom_minimum_size = Vector2(150, 24)
 layout_mode = 2
 text = "Nuevo mapa"
 
+[node name="BotonCinematicas" type="Button" parent="HUD/MenuPausa/Centro/Panel/Lista"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 24)
+layout_mode = 2
+text = "Cinemáticas: Sí"
+
+[node name="BotonSonido" type="Button" parent="HUD/MenuPausa/Centro/Panel/Lista"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 24)
+layout_mode = 2
+text = "Sonido: Sí"
+
 [node name="BotonMenuPrincipal" type="Button" parent="HUD/MenuPausa/Centro/Panel/Lista"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(150, 24)

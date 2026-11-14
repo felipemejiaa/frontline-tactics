@@ -15,6 +15,9 @@ func _ready() -> void:
 	%BotonTerminar.pressed.connect(func(): terminar_turno_pedido.emit())
 	%BotonMenu.pressed.connect(abrir_pausa)
 	%BotonTienda.pressed.connect(func(): tienda_pedida.emit())
+	%BotonCinematicas.pressed.connect(_alternar_cinematicas)
+	%BotonSonido.pressed.connect(_alternar_sonido)
+	_actualizar_opciones()
 	%BotonContinuar.pressed.connect(cerrar_pausa)
 	%BotonNuevoMapa.pressed.connect(_pedir_nuevo_mapa)
 	%BotonMenuPrincipal.pressed.connect(ir_al_menu_principal)
@@ -51,6 +54,53 @@ func ocultar_info() -> void:
 	%PanelInfo.hide()
 
 
+## Letrero que cruza la pantalla ("TU TURNO", "TURNO DEL ROJO"). Se puede esperar con await.
+func mostrar_cartel(texto: String, color: Color) -> void:
+	Sonido.reproducir("turno")
+	var franja := ColorRect.new()
+	franja.color = Color(color, 0.85)
+	franja.size = Vector2(480, 40)
+	franja.position = Vector2(-480, 115)
+	franja.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var etiqueta := Label.new()
+	etiqueta.text = texto
+	etiqueta.size = franja.size
+	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	etiqueta.add_theme_font_size_override("font_size", 22)
+	etiqueta.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	etiqueta.add_theme_constant_override("outline_size", 6)
+	franja.add_child(etiqueta)
+	# Bloquea los toques mientras pasa, para no mover nada sin querer.
+	var bloqueo := Control.new()
+	bloqueo.size = Vector2(480, 270)
+	bloqueo.mouse_filter = Control.MOUSE_FILTER_STOP
+	bloqueo.add_child(franja)
+	add_child(bloqueo)
+	move_child(bloqueo, %MenuPausa.get_index())
+	var tw := create_tween()
+	tw.tween_property(franja, "position:x", 0.0, 0.25).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.55)
+	tw.tween_property(franja, "position:x", 480.0, 0.25).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	await tw.finished
+	bloqueo.queue_free()
+
+
+func _alternar_cinematicas() -> void:
+	Cinematica.activadas = not Cinematica.activadas
+	_actualizar_opciones()
+
+
+func _alternar_sonido() -> void:
+	Sonido.activado = not Sonido.activado
+	_actualizar_opciones()
+
+
+func _actualizar_opciones() -> void:
+	%BotonCinematicas.text = "Cinemáticas: " + ("Sí" if Cinematica.activadas else "No")
+	%BotonSonido.text = "Sonido: " + ("Sí" if Sonido.activado else "No")
+
+
 func hay_menu_abierto() -> bool:
 	return %MenuPausa.visible or %PantallaFin.visible
 
@@ -67,6 +117,7 @@ func cerrar_pausa() -> void:
 ## Persona 1: llamar esto (a través de main.terminar_partida) cuando alguien gane.
 func mostrar_fin(ganador: String) -> void:
 	%MenuPausa.hide()
+	Sonido.reproducir("victoria" if ganador == "azul" else "derrota")
 	if ganador == "azul":
 		%TituloFin.text = "¡VICTORIA!"
 		%MensajeFin.text = "Derrotaste al ejército rojo."

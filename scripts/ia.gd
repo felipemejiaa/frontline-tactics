@@ -36,6 +36,7 @@ func _jugar_unidad(u: Unidad) -> void:
 	if not ataque.is_empty():
 		await main.mover(u, ataque["desde"])
 		ataque_elegido.emit(u, ataque["objetivo"])
+		await main.ejecutar_ataque(u, ataque["objetivo"])
 		return
 
 	# 2. Si no, acercarse lo más posible al objetivo más cercano.

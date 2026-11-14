@@ -46,6 +46,7 @@ func _initialize() -> void:
 		await process_frame
 	var main: Node = current_scene
 	revisar(main != null and main.name == "Main", "Jugar abre la partida")
+	await create_timer(1.3).timeout  # esperar a que pase el letrero "TU TURNO"
 
 	print("Partida")
 	var hud: HUD = main.hud
@@ -66,6 +67,7 @@ func _initialize() -> void:
 	await tocar(centro_de(main.get_node("%BotonMenu")))
 	await tocar(centro_de(main.get_node("%BotonNuevoMapa")))
 	revisar(main.semilla != mapa_antes and not hud.hay_menu_abierto(), "Nuevo mapa cambia el mapa y cierra el menú")
+	await create_timer(1.3).timeout
 
 	main.terminar_partida("azul")
 	revisar(main.get_node("%PantallaFin").visible and main.get_node("%TituloFin").text == "¡VICTORIA!", "pantalla de victoria")
@@ -75,6 +77,7 @@ func _initialize() -> void:
 	await process_frame
 	await tocar(centro_de(main.get_node("%BotonJugarOtraVez")))
 	revisar(not main.juego_terminado and not hud.hay_menu_abierto(), "Jugar otra vez empieza una partida nueva")
+	await create_timer(1.3).timeout
 
 	main.terminar_partida("rojo")
 	await process_frame

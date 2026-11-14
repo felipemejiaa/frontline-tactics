@@ -35,17 +35,21 @@ var objetivos_actuales: Array[Unidad] = []
 var ataques_posibles := {}
 ## true mientras una unidad se mueve para atacar (así no se abre el menú de acciones).
 var atacando_directo := false
+## Mientras se resuelve un ataque se anotan los golpes, para mostrarlos en la cinemática.
+var _grabando := false
+var _eventos: Array = []
 var menu: PanelContainer
 var caja_menu: VBoxContainer
 
 
 func _ready() -> void:
+	Sonido.iniciar()
 	reglas = Reglas.new()
 	add_child(reglas)
 	reglas.partida_terminada.connect(_on_partida_terminada)
 	reglas.creditos_cambiados.connect(func(_e, _c): _actualizar_hud())
-	ia.ataque_elegido.connect(reglas.atacar)
 	reglas.unidad_atacada.connect(_mostrar_dano)
+	reglas.ciudad_capturada.connect(func(_c, _e): Sonido.reproducir("captura"))
 	hud.tienda_pedida.connect(_on_tienda)
 	unidad_movida.connect(_on_unidad_movida)
 	_construir_interfaz()
@@ -98,6 +102,8 @@ func _empezar_partida() -> void:
 	var pantalla := get_viewport_rect().size
 	mapa.position = Vector2(floorf((pantalla.x - tamano.x) / 2.0), 30 + floorf((pantalla.y - 30 - tamano.y) / 2.0))
 	_actualizar_hud()
+	if not modo_prueba:
+		hud.mostrar_cartel("TU TURNO", Color(0.2, 0.45, 0.9))
 
 
 # ---------------------------------------------------------------- entrada táctil
@@ -125,7 +131,9 @@ func tocar_celda(celda: Vector2i) -> void:
 			if o != null and o in objetivos_actuales:
 				var atacante := unidad_menu
 				_cerrar_menu()
-				reglas.atacar(atacante, o)
+				estado = Estado.MOVIENDO
+				await ejecutar_ataque(atacante, o)
+				estado = Estado.LIBRE
 		Estado.LIBRE:
 			var u := mapa.unidad_en(celda)
 			if u != null:
@@ -169,6 +177,7 @@ func seleccionar(u: Unidad) -> void:
 	resaltado.mostrar(alcance["destinos"], color, u.celda, marcados)
 	hud.mostrar_info(_texto_info(u), u.celda.x < mapa.ancho / 2)
 	estado = Estado.SELECCIONADA
+	Sonido.reproducir("seleccion", -4.0)
 
 
 func deseleccionar() -> void:
@@ -216,7 +225,8 @@ func _mover_y_atacar(u: Unidad, desde: Vector2i, objetivo: Unidad) -> void:
 		deseleccionar()
 	atacando_directo = false
 	u.ya_se_movio = true
-	reglas.atacar(u, objetivo)
+	estado = Estado.MOVIENDO
+	await ejecutar_ataque(u, objetivo)
 	estado = Estado.LIBRE
 
 
@@ -231,8 +241,78 @@ func _texto_info(u: Unidad) -> String:
 	return texto
 
 
-## Número de daño flotando sobre la unidad golpeada, y parpadeo.
-func _mostrar_dano(_atacante: Unidad, objetivo: Unidad, dano: int) -> void:
+## Resuelve un ataque con su animación. La usan el jugador y la IA.
+## - Con cinemáticas: se calcula el resultado y se muestra en la pantalla de combate.
+## - Sin cinemáticas: la unidad se lanza hacia el enemigo en el mapa.
+func ejecutar_ataque(atacante: Unidad, objetivo: Unidad) -> void:
+	if not reglas.puede_atacar(atacante, objetivo) or atacante.ya_ataco:
+		return
+	var azul := atacante if atacante.equipo == "azul" else objetivo
+	var rojo := objetivo if azul == atacante else atacante
+	var info_azul := _info_combate(azul)
+	var info_rojo := _info_combate(rojo)
+	var con_cinematica := Cinematica.activadas and not modo_prueba
+	if not con_cinematica:
+		await _embestida(atacante, objetivo)
+	_eventos.clear()
+	_grabando = con_cinematica
+	reglas.atacar(atacante, objetivo)
+	_grabando = false
+	if con_cinematica and not _eventos.is_empty():
+		var cine := Cinematica.new()
+		add_child(cine)
+		await cine.reproducir(info_azul, info_rojo, _eventos.duplicate())
+
+
+func _info_combate(u: Unidad) -> Dictionary:
+	var terreno := mapa.terreno_en(u.celda)
+	var datos_t: Dictionary = Datos.TERRENOS[terreno]
+	var adorno := Vector2i(-1, -1)
+	var dueno := mapa.dueno_en(u.celda)
+	if dueno != "" and datos_t.has("adorno_" + dueno):
+		adorno = datos_t["adorno_" + dueno]
+	elif datos_t.has("adorno"):
+		adorno = datos_t["adorno"]
+	return {"tipo": u.tipo, "equipo": u.equipo, "vida": u.vida, "terreno": terreno, "adorno": adorno}
+
+
+## Animación rápida en el mapa: el atacante se lanza hacia el enemigo y vuelve.
+## La artillería, en cambio, dispara un proyectil.
+func _embestida(atacante: Unidad, objetivo: Unidad) -> void:
+	var origen := atacante.position
+	if atacante.datos()["rango_min"] > 1:
+		Sonido.reproducir("canon")
+		var bala := ColorRect.new()
+		bala.color = Color(1, 0.9, 0.4)
+		bala.size = Vector2(3, 3)
+		bala.position = origen
+		bala.z_index = 15
+		mapa.add_child(bala)
+		var tw := bala.create_tween()
+		tw.tween_property(bala, "position", objetivo.position, 0.3)
+		await tw.finished
+		bala.queue_free()
+	else:
+		Sonido.reproducir("disparo")
+		var dir := (objetivo.position - origen).normalized()
+		var tw := atacante.create_tween()
+		tw.tween_property(atacante, "position", origen + dir * 6, 0.07)
+		tw.tween_property(atacante, "position", origen, 0.1)
+		await tw.finished
+	Efectos.chispas(mapa, objetivo.position, 10)
+
+
+## Número de daño flotando sobre la unidad golpeada, parpadeo y explosión si muere.
+func _mostrar_dano(atacante: Unidad, objetivo: Unidad, dano: int) -> void:
+	if _grabando:
+		_eventos.append({"lado": "izq" if atacante.equipo == "azul" else "der",
+			"dano": dano, "vida_final": objetivo.vida})
+	elif objetivo.vida > 0:
+		Sonido.reproducir("golpe")
+	if objetivo.vida <= 0:
+		Efectos.explosion(mapa, objetivo.position)
+		if not _grabando:
+			Sonido.reproducir("explosion")
 	var etiqueta := Label.new()
 	etiqueta.text = "-%d" % dano
 	etiqueta.add_theme_font_size_override("font_size", 12)
@@ -381,7 +461,8 @@ func _on_tienda() -> void:
 
 
 func _comprar(tipo: String) -> void:
-	reglas.comprar(tipo, equipo_actual)
+	if reglas.comprar(tipo, equipo_actual):
+		Sonido.reproducir("compra")
 	_cerrar_menu()
 
 
@@ -404,11 +485,15 @@ func terminar_turno() -> void:
 	if equipo_actual == ia.equipo:
 		turno_ia = true
 		hud.bloquear_botones(true)
+		if not modo_prueba:
+			await hud.mostrar_cartel("TURNO DEL ROJO", Color(0.8, 0.2, 0.2))
 		await ia.jugar_turno()
 		turno_ia = false
 		hud.bloquear_botones(false)
 		if not juego_terminado:
 			terminar_turno()
+	elif not modo_prueba:
+		await hud.mostrar_cartel("TU TURNO", Color(0.2, 0.45, 0.9))
 
 
 func _on_partida_terminada(ganador: String) -> void:

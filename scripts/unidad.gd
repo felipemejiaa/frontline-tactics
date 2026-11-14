@@ -33,6 +33,7 @@ func recorrer(puntos: Array[Vector2]) -> void:
 		return
 	var tween := create_tween()
 	for p in puntos:
+		tween.tween_callback(Sonido.reproducir.bind("paso", -6.0))
 		tween.tween_property(self, "position", p, 0.08)
 	await tween.finished
 
@@ -41,10 +42,9 @@ func recorrer(puntos: Array[Vector2]) -> void:
 func _draw() -> void:
 	if vida <= 0 or vida >= datos()["vida_max"]:
 		return
-	var fuente := ThemeDB.fallback_font
-	var pos := Vector2(2, 8)
-	draw_string_outline(fuente, pos, str(vida), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, 3, Color.BLACK)
-	draw_string(fuente, pos, str(vida), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color.WHITE)
+	# Los números 0-9 están en la fila 10 de la hoja de gráficos de Kenney.
+	var t := Datos.TAM_CASILLA
+	draw_texture_rect_region(Datos.ATLAS, Rect2(0, 0, 9, 9), Rect2(vida * t, 10 * t, t, t))
 
 
 ## Parpadeo en rojo al recibir un golpe.
