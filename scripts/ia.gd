@@ -8,6 +8,7 @@ extends Node
 signal ataque_elegido(atacante: Unidad, objetivo: Unidad)
 
 const PAUSA := 0.25  # segundos entre unidad y unidad, para que el jugador alcance a ver
+const MAX_UNIDADES := 8  # la IA no compra más si ya tiene tantas
 
 @export var equipo := "rojo"
 
@@ -17,12 +18,13 @@ const PAUSA := 0.25  # segundos entre unidad y unidad, para que el jugador alcan
 
 ## Juega todas las unidades del equipo. Usar con: await ia.jugar_turno()
 func jugar_turno() -> void:
-	# TODO (cuando existan los créditos): comprar unidades en la base antes de mover.
 	for u in mapa.unidades_de(equipo):
 		if not is_instance_valid(u) or u.ya_se_movio:
 			continue
 		await _jugar_unidad(u)
 		await get_tree().create_timer(PAUSA).timeout
+	# Se compra al final: así la base ya quedó libre si una unidad salió de ella.
+	_comprar_unidad()
 
 
 func _jugar_unidad(u: Unidad) -> void:
@@ -39,6 +41,32 @@ func _jugar_unidad(u: Unidad) -> void:
 	# 2. Si no, acercarse lo más posible al objetivo más cercano.
 	var destino := _mejor_acercamiento(u, destinos)
 	await main.mover(u, destino)
+	# 3. Si terminó sobre un edificio que no es suyo, lo captura.
+	if is_instance_valid(u) and main.reglas.puede_capturar(u):
+		main.reglas.capturar(u)
+
+
+## Compra una unidad: la que le gana al tipo de enemigo más común; si no alcanza, infantería.
+func _comprar_unidad() -> void:
+	if mapa.unidades_de(equipo).size() >= MAX_UNIDADES:
+		return
+	var conteo := {}
+	for r in mapa.unidades_de(_equipo_rival()):
+		conteo[r.tipo] = conteo.get(r.tipo, 0) + 1
+	var mas_comun := ""
+	var cantidad := 0
+	for t in conteo:
+		if conteo[t] > cantidad:
+			cantidad = conteo[t]
+			mas_comun = t
+	var preferidos: Array[String] = []
+	for t in Datos.LE_GANA_A:
+		if Datos.LE_GANA_A[t] == mas_comun:
+			preferidos.append(t)
+	preferidos.append("infanteria")
+	for t in preferidos:
+		if main.reglas.comprar(t, equipo):
+			return
 
 
 ## Busca la mejor combinación (casilla desde donde atacar, enemigo a atacar).
