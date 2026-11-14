@@ -1,0 +1,122 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/menu_principal.gd" id="1_menu"]
+[ext_resource type="Script" path="res://scripts/game_map.gd" id="2_map"]
+
+[node name="MenuPrincipal" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="MapaFondo" type="Node2D" parent="."]
+script = ExtResource("2_map")
+
+[node name="Oscurecer" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.05, 0.06, 0.1, 0.6)
+
+[node name="Centro" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Lista" type="VBoxContainer" parent="Centro"]
+layout_mode = 2
+
+[node name="Titulo" type="Label" parent="Centro/Lista"]
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0.05, 0.06, 0.1, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 30
+text = "FRONTLINE TACTICS"
+horizontal_alignment = 1
+
+[node name="Espacio" type="Control" parent="Centro/Lista"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="BotonJugar" type="Button" parent="Centro/Lista"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 24)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Jugar"
+
+[node name="BotonComoJugar" type="Button" parent="Centro/Lista"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 24)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Cómo jugar"
+
+[node name="BotonSalir" type="Button" parent="Centro/Lista"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 24)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Salir"
+
+[node name="Ayuda" type="ColorRect" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.06, 0.1, 0.7)
+
+[node name="Centro" type="CenterContainer" parent="Ayuda"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Ayuda/Centro"]
+layout_mode = 2
+
+[node name="Lista" type="VBoxContainer" parent="Ayuda/Centro/Panel"]
+layout_mode = 2
+
+[node name="Titulo" type="Label" parent="Ayuda/Centro/Panel/Lista"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Cómo jugar"
+horizontal_alignment = 1
+
+[node name="Reglas" type="Label" parent="Ayuda/Centro/Panel/Lista"]
+custom_minimum_size = Vector2(380, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "• Toca una de tus unidades (azules) para ver a dónde se puede mover, y toca una casilla para moverla. Los enemigos marcados en rojo se pueden atacar: tócalos y tu unidad va y ataca.
+• Cada unidad le gana a otra, como piedra, papel o tijera:
+    Infantería → le gana a la Artillería
+    Tanque → le gana a la Infantería
+    Artillería → le gana al Tanque (ataca de lejos)
+• Tanques y artillería no pueden entrar a bosques ni montañas. Nadie cruza el agua.
+• Lleva infantería a una ciudad y captúrala: cada edificio tuyo te da $1000 por turno. Compra unidades con el botón Tienda.
+• Gana quien destruya todo el ejército rival o llegue a su cuartel general."
+autowrap_mode = 3
+
+[node name="BotonVolver" type="Button" parent="Ayuda/Centro/Panel/Lista"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 22)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Volver"

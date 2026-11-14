@@ -13,10 +13,13 @@ Juego de estrategia por turnos para Android, inspirado en Advanced Wars. Hecho e
 ## Cómo se juega (por ahora)
 
 - Toca una unidad azul: se resaltan en azul las casillas a donde puede moverse.
-- Toca una casilla resaltada: la unidad se mueve y queda gris (ya actuó).
+- Toca una casilla resaltada: la unidad se mueve. Si tiene algo que hacer (atacar o capturar) aparece el menú; si no, termina sola.
+- Los enemigos con borde rojo se pueden atacar: tócalos y tu unidad va hasta ellos y ataca.
+- El número sobre una unidad es su vida (solo aparece si está herida). El daño varía ±1 por suerte.
+- **Tienda** (o tocar tu base): comprar unidades. La máquina nunca tiene más de una unidad por encima de ti.
 - Toca una unidad roja: se ve en rojo hasta dónde puede llegar.
 - **Terminar turno**: juega la máquina (rojo) y luego vuelve tu turno.
-- **Nuevo mapa** (temporal): genera otro mapa aleatorio.
+- **Menú**: pausa con Continuar, Nuevo mapa y Menú principal. En Android el botón "atrás" también abre la pausa.
 
 ### Terreno
 
@@ -32,14 +35,19 @@ El número es cuántos puntos de movimiento gasta entrar a esa casilla.
 ## Estructura
 
 ```
-scenes/main.tscn        Escena principal (mapa + HUD)
+scenes/menu_principal.tscn  Menú de inicio (Jugar, Cómo jugar, Salir)
+scenes/main.tscn        La partida (mapa + HUD + menú de pausa + pantalla de fin)
+scripts/menu_principal.gd   Lógica del menú de inicio
+scripts/hud.gd          Barra de arriba, menú de pausa y pantalla de victoria/derrota
+ui/tema.tres            Estilo de botones y paneles (se aplica a todo el juego)
 scripts/datos.gd        Datos de terrenos y unidades (precios, vida, movimiento...)
 scripts/game_map.gd     Mapa, edificios y dueños, posiciones de las unidades y cálculo de movimiento
 scripts/generador_mapa.gd  Mapas aleatorios simétricos (26×15) con ciudades
 scripts/unidad.gd       Una unidad: tipo, equipo, vida, si ya se movió
 scripts/resaltado.gd    Dibuja las casillas resaltadas y el cursor
 scripts/main.gd         Toques en pantalla, selección y movimiento
-scripts/ia.gd           IA del enemigo
+scripts/ia.gd           IA del enemigo (ataca, captura y compra)
+scripts/reglas.gd       Reglas: créditos, compra, combate, captura y victoria
 tests/                  Prueba automática del movimiento
 assets/kenney_tiny_battle/  Gráficos de Kenney.nl (licencia CC0)
 ```
@@ -56,8 +64,9 @@ assets/kenney_tiny_battle/  Gráficos de Kenney.nl (licencia CC0)
 | Mapas aleatorios con ciudades | Persona 2 | ✅ Listo |
 | Selección y movimiento táctil | Persona 2 | ✅ Listo |
 | IA del enemigo | Persona 2 | 🟡 Base lista (falta compra de unidades) |
-| Turnos, combate, créditos y victoria | Persona 1 | ⏳ Pendiente |
-| Menús, HUD, sonido y exportar APK | Persona 3 | ⏳ Pendiente |
+| Turnos, combate, créditos, captura y victoria | Persona 1 | ✅ Listo |
+| Menú principal, pausa y pantalla de fin | Persona 2 | ✅ Listo |
+| Sonido y exportar APK | Persona 3 | ⏳ Pendiente |
 
 ### Para la persona 1 (reglas)
 - `main.gd` emite la señal `unidad_movida(unidad)` cuando una unidad termina de moverse: ahí va el menú *Atacar / Esperar*.
@@ -67,10 +76,12 @@ assets/kenney_tiny_battle/  Gráficos de Kenney.nl (licencia CC0)
 - **Capturar ciudades:** `mapa.cambiar_dueno(celda, equipo)` cambia el dueño y el color del edificio. La IA ya manda su infantería hacia las ciudades; falta la acción de capturar.
 - `mapa.buscar_edificio("base", "azul")` da la casilla donde aparecen las unidades compradas; para crearlas: `mapa.crear_unidad(tipo, equipo, celda)`.
 - La IA emite `ataque_elegido(atacante, objetivo)` cuando decide atacar (ya se movió a la casilla): conectarla a la función de combate, por ejemplo `ia.ataque_elegido.connect(atacar)`.
+- **Fin de partida:** cuando alguien gane, llamar `terminar_partida("azul")` o `terminar_partida("rojo")` en `main.gd`; eso muestra la pantalla de victoria o derrota.
 - `terminar_turno()` en `main.gd` es temporal: reemplazarlo por el sistema de turnos real.
 
 ### Para la persona 3 (visual)
-- El HUD está en el nodo `HUD` de `main.tscn`. El juego se dibuja a 480×270 y se escala a la pantalla.
+- El HUD está en el nodo `HUD` de `main.tscn` (script `hud.gd`). El juego se dibuja a 480×270 y se escala a la pantalla.
+- Colores y estilo de botones: `ui/tema.tres` (se puede abrir y editar visualmente en Godot).
 - Para exportar: Proyecto → Exportar → Android (hay que instalar las plantillas de exportación y configurar el SDK de Android).
 
 ## Prueba automática
@@ -79,6 +90,8 @@ assets/kenney_tiny_battle/  Gráficos de Kenney.nl (licencia CC0)
 godot --headless --path . --script res://tests/prueba_movimiento.gd
 godot --headless --path . --script res://tests/prueba_ia.gd
 godot --headless --path . --script res://tests/prueba_generador.gd
+godot --headless --path . --script res://tests/prueba_menus.gd
+godot --headless --path . --script res://tests/prueba_reglas.gd
 ```
 
 ## Créditos

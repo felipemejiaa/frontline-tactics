@@ -5,7 +5,10 @@ extends Sprite2D
 var tipo := "infanteria"   # "infanteria", "tanque" o "artilleria"
 var equipo := "azul"       # "azul" (jugador) o "rojo" (máquina)
 var celda := Vector2i.ZERO
-var vida := 10
+var vida := 10:
+	set(valor):
+		vida = valor
+		queue_redraw()  # para actualizar el número de vida
 var ya_se_movio := false
 var ya_ataco := false
 
@@ -32,6 +35,25 @@ func recorrer(puntos: Array[Vector2]) -> void:
 	for p in puntos:
 		tween.tween_property(self, "position", p, 0.08)
 	await tween.finished
+
+
+## Dibuja la vida (como en Advanced Wars) solo cuando la unidad está herida.
+func _draw() -> void:
+	if vida <= 0 or vida >= datos()["vida_max"]:
+		return
+	var fuente := ThemeDB.fallback_font
+	var pos := Vector2(2, 8)
+	draw_string_outline(fuente, pos, str(vida), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, 3, Color.BLACK)
+	draw_string(fuente, pos, str(vida), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color.WHITE)
+
+
+## Parpadeo en rojo al recibir un golpe.
+func destello() -> void:
+	var tween := create_tween()
+	tween.tween_property(self, "self_modulate", Color(1, 0.3, 0.3), 0.08)
+	tween.tween_property(self, "self_modulate", Color.WHITE, 0.08)
+	tween.tween_property(self, "self_modulate", Color(1, 0.3, 0.3), 0.08)
+	tween.tween_property(self, "self_modulate", Color.WHITE, 0.08)
 
 
 ## Gris = ya actuó este turno.
