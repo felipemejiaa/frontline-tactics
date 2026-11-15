@@ -19,7 +19,8 @@ func _initialize() -> void:
 	await process_frame
 	var mapa: GameMap = main.mapa
 	var ia: IA = main.ia
-	ia.ataque_elegido.connect(func(a, o): ataques.append([a, o]))
+	# Se guarda la distancia en el momento del ataque (después alguno puede quedar destruido).
+	ia.ataque_elegido.connect(func(a, o): ataques.append([a, o, mapa.distancia(a.celda, o.celda)]))
 
 	print("Acercamiento")
 	var antes := {}
@@ -77,7 +78,7 @@ func _initialize() -> void:
 	for par in ataques:
 		if par[0] == tanque_rojo and par[1] == victima:
 			ataco_al_tanque = true
-			revisar(mapa.distancia(tanque_rojo.celda, victima.celda) == 1, "atacó desde una casilla vecina")
+			revisar(par[2] == 1, "atacó desde una casilla vecina")
 	revisar(ataco_al_tanque, "el tanque rojo eligió atacar a la infantería")
 
 	print("\n%s" % ("TODO BIEN" if fallos == 0 else "%d FALLAS" % fallos))

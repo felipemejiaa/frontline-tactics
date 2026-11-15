@@ -20,6 +20,12 @@ var rango := 0:
 		queue_redraw()
 ## Movimiento extra de este turno (habilidad Marcha forzada).
 var bono_mov := 0
+## Halo que late: "con esta unidad todavía puedes hacer algo".
+var halo := false:
+	set(valor):
+		if halo != valor:
+			halo = valor
+			queue_redraw()
 
 
 func _ready() -> void:
@@ -61,8 +67,16 @@ func recorrer(puntos: Array[Vector2]) -> void:
 
 ## Dibuja la vida (como en Advanced Wars) solo cuando la unidad está herida,
 ## y unas rayitas doradas arriba según su veteranía.
+func _process(_delta: float) -> void:
+	if halo:
+		queue_redraw()
+
+
 func _draw() -> void:
 	var t := Datos.TAM_CASILLA
+	if halo:
+		var latido := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 220.0)
+		draw_rect(Rect2(-8, -8, 16, 16).grow(0.5 + latido), Color(1, 1, 0.75, 0.35 + 0.55 * latido), false, 1.0)
 	if vida > 0 and vida < datos()["vida_max"]:
 		# Los números 0-9 están en la fila 10 de la hoja de gráficos de Kenney.
 		draw_texture_rect_region(Datos.ATLAS, Rect2(0, 0, 9, 9), Rect2(vida * t, 10 * t, t, t))

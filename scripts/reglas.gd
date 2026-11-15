@@ -11,6 +11,8 @@ signal unidad_curada(unidad: Unidad, cantidad: int)
 signal ciudad_capturada(celda: Vector2i, equipo: String)
 signal habilidad_usada(nombre: String, equipo: String)
 signal partida_terminada(ganador: String)
+signal centro_danado(equipo: String, dano: int, vida: int)   # alguien golpeó un Centro Urbano
+signal base_temporal_asignada(equipo: String, celda: Vector2i)
 
 # ---- Valores que puedes ajustar ----
 const EQUIPOS := ["azul", "rojo"]
@@ -18,7 +20,6 @@ const CREDITOS_INICIALES := 2000
 const DEFENSA_POR_NIVEL := 0.1  # cada nivel de defensa del terreno quita 10 %
 const BONO_FLANQUEO := 0.15     # +15 % por cada aliado pegado al objetivo
 const BONO_RANGO := 0.1         # +10 % por cada estrella de veteranía
-const PUNTOS_PARA_CAPTURAR := 20
 const SUERTE := 1               # el daño real varía entre -1 y +1 del estimado
 const PROB_CRITICO := 0.10      # 10 % de probabilidad de golpe crítico...
 const CRITICO_POR_RANGO := 0.05 # ...+5 % por cada estrella de veteranía
@@ -40,6 +41,12 @@ var radar_activo := {}
 ## Es "static" para que siga activo aunque se empiece otra partida.
 static var dinero_infinito := false
 const DINERO_TRUCO := 999999
+## Dinero que tenía el jugador antes del truco, para devolvérselo al desactivarlo.
+static var _creditos_antes_del_truco := -1
+## Vida del Centro Urbano de cada equipo (se puede destruir a golpes).
+var vida_centro := {}
+## Si la base se pierde o el enemigo la está capturando, se compra en un edificio elegido al azar.
+var _base_temporal := {}
 var _captura := {}    # celda -> puntos acumulados
 var _cuarteles := {}  # equipo -> celda de su cuartel general
 
@@ -51,20 +58,34 @@ func iniciar(mapa_ref: GameMap) -> void:
 	mapa.progreso_captura.clear()
 	_cuarteles.clear()
 	radar_activo.clear()
+	_base_temporal.clear()
+	_creditos_antes_del_truco = -1
 	for e in EQUIPOS:
 		creditos[e] = CREDITOS_INICIALES
 		_cuarteles[e] = mapa.buscar_edificio("cuartel", e)
 		estadisticas[e] = {"destruidas": 0, "perdidas": 0, "capturadas": 0, "compradas": 0,
 			"gastado": 0, "habilidades": 0}
 		usos_habilidad[e] = {}
+		vida_centro[e] = Datos.VIDA_CENTRO
+		if mapa.en_mapa(_cuarteles[e]):
+			mapa.mostrar_vida_centro(_cuarteles[e], 1.0)
 		creditos_cambiados.emit(e, creditos[e])
 	aplicar_dinero_infinito()
 
 
+## Activa o desactiva el truco según Reglas.dinero_infinito.
+## Al desactivarlo, el jugador vuelve a tener el dinero que tenía antes.
 func aplicar_dinero_infinito() -> void:
-	if dinero_infinito and creditos.has("azul"):
+	if not creditos.has("azul"):
+		return
+	if dinero_infinito:
+		if _creditos_antes_del_truco < 0:
+			_creditos_antes_del_truco = creditos["azul"]
 		creditos["azul"] = DINERO_TRUCO
-		creditos_cambiados.emit("azul", creditos["azul"])
+	elif _creditos_antes_del_truco >= 0:
+		creditos["azul"] = _creditos_antes_del_truco
+		_creditos_antes_del_truco = -1
+	creditos_cambiados.emit("azul", creditos["azul"])
 
 
 func otro_equipo(equipo: String) -> String:
@@ -91,6 +112,40 @@ func ingreso_de(equipo: String) -> int:
 
 func celda_base(equipo: String) -> Vector2i:
 	return mapa.buscar_edificio("base", equipo)
+
+
+## Dónde aparecen las unidades compradas. Normalmente en la base; pero si la base se perdió
+## o el enemigo la está capturando, el juego elige al azar otro edificio propio libre
+## (una "base temporal") para que el jugador pueda seguir defendiéndose.
+func celda_compra(equipo: String) -> Vector2i:
+	var base := celda_base(equipo)
+	if mapa.en_mapa(base):
+		var ocupante := mapa.unidad_en(base)
+		if ocupante == null or ocupante.equipo == equipo:
+			_base_temporal.erase(equipo)
+			return base  # (si la ocupa una unidad propia, motivo_no_compra dice "Base ocupada")
+	var actual: Vector2i = _base_temporal.get(equipo, Vector2i(-1, -1))
+	if mapa.en_mapa(actual) and mapa.dueno_en(actual) == equipo and mapa.unidad_en(actual) == null:
+		return actual
+	var opciones: Array[Vector2i] = []
+	for c in mapa.edificios_de(equipo):
+		if mapa.terreno_en(c) != "cuartel" and mapa.unidad_en(c) == null:
+			opciones.append(c)
+	if opciones.is_empty():  # sin ciudades libres: el propio Centro Urbano
+		var cuartel := mapa.buscar_edificio("cuartel", equipo)
+		if mapa.en_mapa(cuartel) and mapa.unidad_en(cuartel) == null:
+			opciones.append(cuartel)
+	if opciones.is_empty():
+		_base_temporal.erase(equipo)
+		return Vector2i(-1, -1)
+	var elegida: Vector2i = opciones[randi() % opciones.size()]
+	_base_temporal[equipo] = elegida
+	base_temporal_asignada.emit(equipo, elegida)
+	return elegida
+
+
+func tiene_base_temporal(equipo: String) -> bool:
+	return _base_temporal.has(equipo)
 
 
 func _sumar_creditos(equipo: String, cantidad: int) -> void:
@@ -120,10 +175,10 @@ func motivo_no_compra(tipo: String, equipo: String) -> String:
 	if poblacion(equipo) >= limite_poblacion(equipo):
 		return "Población llena"
 	if Datos.UNIDADES[tipo].get("construccion", false):
-		return "" if not celdas_torreta(equipo).is_empty() else "Sin espacio junto al cuartel"
-	var base := celda_base(equipo)
+		return "" if not celdas_torreta(equipo).is_empty() else "Sin espacio junto al Centro Urbano"
+	var base := celda_compra(equipo)
 	if not mapa.en_mapa(base):
-		return "Perdiste tu base"
+		return "Sin edificios libres"
 	if mapa.unidad_en(base) != null:
 		return "Base ocupada"
 	return ""
@@ -150,7 +205,7 @@ func celdas_torreta(equipo: String) -> Array[Vector2i]:
 func comprar(tipo: String, equipo: String, celda := Vector2i(-1, -1)) -> bool:
 	if motivo_no_compra(tipo, equipo) != "":
 		return false
-	var destino := celda_base(equipo)
+	var destino := celda_compra(equipo)
 	if Datos.UNIDADES[tipo].get("construccion", false):
 		if not celda in celdas_torreta(equipo):
 			return false
@@ -207,9 +262,20 @@ func _dano(atacante: Unidad, vida_atacante: int, celda_atacante: Vector2i,
 	mult *= 1.0 + BONO_FLANQUEO * aliados_flanqueando(atacante.equipo, celda_objetivo, celda_atacante, atacante)
 	var defensa := 0.0
 	if not objetivo.es_aerea():
-		defensa = Datos.TERRENOS[mapa.terreno_en(celda_objetivo)]["defensa"] * DEFENSA_POR_NIVEL
+		defensa = nivel_defensa(objetivo, celda_objetivo) * DEFENSA_POR_NIVEL
 	var dano: float = vida_max_obj * mult * fuerza * (1.0 - defensa)
 	return maxi(1, int(round(dano)))
+
+
+## Niveles de defensa de una unidad en una casilla: los del terreno, más un bono
+## si está dentro de un edificio de su propio equipo (ver Datos.BONO_DEFENSA_PROPIO).
+func nivel_defensa(u: Unidad, celda: Vector2i) -> int:
+	if u.es_aerea():
+		return 0
+	var nivel: int = Datos.TERRENOS[mapa.terreno_en(celda)]["defensa"]
+	if mapa.dueno_en(celda) == u.equipo:
+		nivel += Datos.BONO_DEFENSA_PROPIO.get(u.tipo, 0)
+	return nivel
 
 
 ## Cuántos aliados del atacante están pegados al objetivo (sin contar al atacante).
@@ -306,12 +372,17 @@ func puede_capturar(u: Unidad) -> bool:
 	return _terreno_en(u.celda) in TIPOS_EDIFICIO and _dueno_en(u.celda) != u.equipo
 
 
+func puntos_para_capturar(celda: Vector2i) -> int:
+	return Datos.PUNTOS_CAPTURA.get(mapa.terreno_en(celda), 20)
+
+
 func capturar(u: Unidad) -> void:
 	if terminada or not puede_capturar(u):
 		return
 	_captura[u.celda] = _captura.get(u.celda, 0) + u.vida
-	mapa.mostrar_progreso(u.celda, float(_captura[u.celda]) / PUNTOS_PARA_CAPTURAR, u.equipo)
-	if _captura[u.celda] >= PUNTOS_PARA_CAPTURAR:
+	var necesarios: int = puntos_para_capturar(u.celda)
+	mapa.mostrar_progreso(u.celda, float(_captura[u.celda]) / necesarios, u.equipo)
+	if _captura[u.celda] >= necesarios:
 		_captura.erase(u.celda)
 		mapa.mostrar_progreso(u.celda, 0.0, "")
 		mapa.cambiar_dueno(u.celda, u.equipo)
@@ -432,8 +503,43 @@ func usar_radar(equipo: String) -> bool:
 	return true
 
 
+# ---------------- ATACAR EL CENTRO URBANO ----------------
+## Además de capturarlo, el Centro Urbano enemigo se puede destruir a golpes (tarda más).
+## Solo se le puede pegar si no hay ninguna unidad encima (si la hay, hay que atacar a la unidad).
+func centro_rival(equipo: String) -> Vector2i:
+	var c: Vector2i = _cuarteles.get(otro_equipo(equipo), Vector2i(-1, -1))
+	return c if mapa.en_mapa(c) and _dueno_en(c) == otro_equipo(equipo) else Vector2i(-1, -1)
+
+
+func dano_estructura(u: Unidad) -> int:
+	var base: int = Datos.DANO_ESTRUCTURA.get(u.tipo, 0)
+	if base <= 0:
+		return 0
+	return maxi(1, int(round(base * float(u.vida) / u.datos()["vida_max"] * (1.0 + BONO_RANGO * u.rango))))
+
+
+func puede_atacar_centro_desde(u: Unidad, desde: Vector2i) -> bool:
+	var centro := centro_rival(u.equipo)
+	if not mapa.en_mapa(centro) or mapa.unidad_en(centro) != null or dano_estructura(u) <= 0:
+		return false
+	var d := mapa.distancia(desde, centro)
+	return d >= u.datos()["rango_min"] and d <= u.datos()["rango_max"]
+
+
+func atacar_centro(u: Unidad) -> void:
+	if terminada or u.ya_ataco or not puede_atacar_centro_desde(u, u.celda):
+		return
+	var rival := otro_equipo(u.equipo)
+	var dano := dano_estructura(u)
+	vida_centro[rival] = maxi(0, vida_centro[rival] - dano)
+	mapa.mostrar_vida_centro(_cuarteles[rival], float(vida_centro[rival]) / Datos.VIDA_CENTRO)
+	centro_danado.emit(rival, dano, vida_centro[rival])
+	marcar_lista(u)
+	revisar_victoria()
+
+
 # ---------------- VICTORIA ----------------
-## Un equipo pierde si le capturan el cuartel general, o si se queda sin unidades
+## Un equipo pierde si le capturan o destruyen el Centro Urbano, o si se queda sin unidades
 ## y no puede comprar más (sin base o sin dinero suficiente ni con lo del próximo turno).
 func revisar_victoria() -> void:
 	if terminada:
@@ -449,10 +555,12 @@ func revisar_victoria() -> void:
 func esta_derrotado(equipo: String) -> bool:
 	var cuartel: Vector2i = _cuarteles.get(equipo, Vector2i(-1, -1))
 	if mapa.en_mapa(cuartel) and _dueno_en(cuartel) != equipo:
-		return true
+		return true  # le capturaron el Centro Urbano
+	if vida_centro.get(equipo, 1) <= 0:
+		return true  # le destruyeron el Centro Urbano
 	if not mapa.unidades_de(equipo).is_empty():
 		return false
-	if not mapa.en_mapa(celda_base(equipo)):
+	if not mapa.en_mapa(celda_compra(equipo)):
 		return true
 	var mas_barata := 999999
 	for t in Datos.UNIDADES:

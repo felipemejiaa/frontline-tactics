@@ -2,7 +2,6 @@ extends Control
 ## Menú principal: muestra un mapa aleatorio de fondo y los botones Jugar, Cómo jugar y Salir.
 
 @onready var mapa_fondo: GameMap = $MapaFondo
-@onready var ayuda: Control = %Ayuda
 
 
 func _ready() -> void:
@@ -10,7 +9,6 @@ func _ready() -> void:
 	%BotonJugar.pressed.connect(_on_jugar)
 	%BotonComoJugar.pressed.connect(_on_como_jugar)
 	%BotonSalir.pressed.connect(_on_salir)
-	%BotonVolver.pressed.connect(_on_volver)
 	_poner_mapa_de_fondo()
 	Sonido.iniciar()
 
@@ -36,6 +34,7 @@ func _on_jugar() -> void:
 
 
 func _empezar() -> void:
+	Config.tutorial = false
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 
@@ -109,12 +108,10 @@ func _actualizar_opciones() -> void:
 	_boton_niebla.text = "Niebla de guerra: " + ("Sí" if Config.niebla else "No")
 
 
+## "Cómo jugar" abre el tutorial interactivo (una partida guiada paso a paso).
 func _on_como_jugar() -> void:
-	ayuda.show()
-
-
-func _on_volver() -> void:
-	ayuda.hide()
+	Config.tutorial = true
+	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 
 func _on_salir() -> void:
@@ -124,9 +121,7 @@ func _on_salir() -> void:
 ## Botón "atrás" de Android: cierra la ayuda si está abierta; si no, sale del juego.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
-		if ayuda.visible:
-			_on_volver()
-		elif _panel_partida != null and _panel_partida.visible:
+		if _panel_partida != null and _panel_partida.visible:
 			_panel_partida.hide()
 		else:
 			_on_salir()

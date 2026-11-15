@@ -60,7 +60,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(140, 24)
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Cómo jugar"
+text = "Cómo jugar (tutorial)"
 
 [node name="BotonSalir" type="Button" parent="Centro/Lista"]
 unique_name_in_owner = true
@@ -68,54 +68,3 @@ custom_minimum_size = Vector2(140, 24)
 layout_mode = 2
 size_flags_horizontal = 4
 text = "Salir"
-
-[node name="Ayuda" type="ColorRect" parent="."]
-unique_name_in_owner = true
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0.05, 0.06, 0.1, 0.7)
-
-[node name="Centro" type="CenterContainer" parent="Ayuda"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="Panel" type="PanelContainer" parent="Ayuda/Centro"]
-layout_mode = 2
-
-[node name="Lista" type="VBoxContainer" parent="Ayuda/Centro/Panel"]
-layout_mode = 2
-
-[node name="Titulo" type="Label" parent="Ayuda/Centro/Panel/Lista"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "Cómo jugar"
-horizontal_alignment = 1
-
-[node name="Reglas" type="Label" parent="Ayuda/Centro/Panel/Lista"]
-custom_minimum_size = Vector2(440, 0)
-layout_mode = 2
-theme_override_font_sizes/font_size = 9
-text = "• Toca una unidad azul para ver a dónde se mueve. Arrastra el dedo para mover el mapa.
-• Enemigos con borde rojo: tócalos para ver el daño estimado, y otra vez para atacar.
-• Como en Advanced Wars: el tanque aplasta infantería; la artillería castiga todo lo de tierra pero no le dispara al aire; la antiaérea destroza helicópteros e infantería; el helicóptero caza tanques y artillería. Mantén presionada una unidad para ver contra quién es fuerte o débil.
-• Captura ciudades con infantería (2 turnos): dan $500 por turno, curan +2 y suben tu población (3 + 1 por edificio).
-• Destruir enemigos da estrellas de veteranía (+10% de daño). Rodear al enemigo da +15% por aliado.
-• Toca un enemigo para ver a dónde se mueve (naranja) y hasta dónde ataca (rojo). Tienda: unidades y habilidades.
-• Ganas si capturas el cuartel enemigo o lo dejas sin unidades y sin forma de comprar."
-autowrap_mode = 3
-
-[node name="BotonVolver" type="Button" parent="Ayuda/Centro/Panel/Lista"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(100, 22)
-layout_mode = 2
-size_flags_horizontal = 4
-text = "Volver"

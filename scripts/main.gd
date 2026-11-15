@@ -4,6 +4,9 @@ extends Node2D
 
 ## Se emite cuando una unidad termina de moverse.
 signal unidad_movida(unidad: Unidad)
+## Aviso general de lo que hace el jugador (lo escucha el tutorial):
+## "seleccion", "movida", "ataque", "usada", "captura", "capturada", "tienda", "compra", "turno_azul".
+signal evento(nombre: String, dato)
 
 enum Estado { LIBRE, SELECCIONADA, MOVIENDO, MENU, OBJETIVO, APUNTAR }
 
@@ -20,6 +23,8 @@ const TIEMPO_PRESION_LARGA := 0.45 # segundos manteniendo el dedo para ver detal
 
 ## Las pruebas automáticas lo ponen en true para usar siempre el mismo mapa.
 var modo_prueba := false
+## Partida guiada de "Cómo jugar" (null si es una partida normal).
+var tutorial: Tutorial = null
 ## Semilla del mapa actual (sirve para repetir un mapa que salió bueno).
 var semilla := 0
 
@@ -49,8 +54,14 @@ var caja_menu: VBoxContainer
 ## Al apuntar una habilidad o una torreta: casillas válidas y qué hacer al tocar una.
 var _celdas_apuntar: Array[Vector2i] = []
 var _al_apuntar: Callable
+## Habilidades de área: función que da el área (celda -> daño) y la casilla en vista previa.
+var _area_apuntar: Callable
+var _celda_prevista := Vector2i(-1, -1)
+var _instruccion_apuntar := ""
 # --- cámara ---
 var camara := Camera2D.new()
+## Espacio de arriba que no debe tapar el mapa (la barra; en el tutorial, también su letrero).
+var alto_barra := ALTO_BARRA
 var _presionado := false
 var _arrastrando := false
 var _inicio_toque := Vector2.ZERO
@@ -70,14 +81,22 @@ func _ready() -> void:
 	reglas.unidad_danada.connect(_mostrar_dano_bombardeo)
 	reglas.unidad_curada.connect(_mostrar_curacion)
 	reglas.ciudad_capturada.connect(_celebrar_captura)
+	reglas.centro_danado.connect(_mostrar_dano_centro)
+	reglas.base_temporal_asignada.connect(_avisar_base_temporal)
 	hud.tienda_pedida.connect(_on_tienda)
 	hud.truco_dinero.connect(_alternar_dinero_infinito)
 	unidad_movida.connect(_on_unidad_movida)
 	_construir_interfaz()
-	hud.terminar_turno_pedido.connect(terminar_turno)
+	hud.terminar_turno_pedido.connect(_pedir_terminar_turno)
 	hud.nuevo_mapa_pedido.connect(nuevo_mapa)
+	reglas.unidad_atacada.connect(func(a, _o, _d, _c): if a.equipo == "azul": evento.emit("ataque", a))
+	reglas.ciudad_capturada.connect(func(_c, e): evento.emit("capturada", e))
 	if modo_prueba:
 		_cargar_mapa_de_prueba()
+	elif Config.tutorial:
+		tutorial = Tutorial.new()
+		add_child(tutorial)
+		tutorial.preparar(self)
 	else:
 		nuevo_mapa()
 
@@ -133,7 +152,7 @@ func _empezar_partida() -> void:
 	reglas.multiplicador_ingreso = {"azul": 1.0, "rojo": Datos.DIFICULTADES[Config.dificultad]["ingreso"]}
 	reglas.iniciar(mapa)
 	reglas.al_empezar_turno(equipo_actual)  # el azul cobra al empezar
-	mapa.niebla_activa = Config.niebla and not modo_prueba
+	mapa.niebla_activa = Config.niebla and not modo_prueba and tutorial == null
 	mapa.actualizar_vision("azul")
 	mapa.position = Vector2.ZERO
 	var cuartel := mapa.buscar_edificio("cuartel", "azul")
@@ -155,9 +174,9 @@ func _limitar_camara(pos: Vector2) -> Vector2:
 	var min_x := vista.x / 2.0 - margen
 	var max_x := tamano.x + margen - vista.x / 2.0
 	resultado.x = tamano.x / 2.0 if max_x < min_x else clampf(pos.x, min_x, max_x)
-	var min_y := vista.y / 2.0 - ALTO_BARRA - margen
+	var min_y := vista.y / 2.0 - alto_barra - margen
 	var max_y := tamano.y + margen - vista.y / 2.0
-	resultado.y = (tamano.y - ALTO_BARRA) / 2.0 if max_y < min_y else clampf(pos.y, min_y, max_y)
+	resultado.y = (tamano.y - alto_barra) / 2.0 if max_y < min_y else clampf(pos.y, min_y, max_y)
 	return resultado
 
 
@@ -249,6 +268,13 @@ func tocar_celda(celda: Vector2i) -> void:
 		Estado.APUNTAR:
 			var accion := _al_apuntar
 			var valida := celda in _celdas_apuntar
+			if _area_apuntar.is_valid():
+				# Habilidad de área: primer toque = ver el área; segundo toque en la misma casilla = lanzar.
+				if not valida:
+					return
+				if celda != _celda_prevista:
+					_previsualizar_area(celda)
+					return
 			_cerrar_menu()
 			if valida:
 				accion.call(celda)
@@ -267,12 +293,14 @@ func tocar_celda(celda: Vector2i) -> void:
 			var u := _unidad_visible(celda)
 			if u != null:
 				seleccionar(u)
-			elif celda == reglas.celda_base(equipo_actual):
+			elif celda == reglas.celda_compra(equipo_actual):
 				_abrir_compra()
 		Estado.SELECCIONADA:
 			if _puede_mover(seleccionada) and ataques_posibles.has(celda):
 				# Tocar un enemigo marcado en rojo: la unidad va y lo ataca (el daño ya se ve encima).
-				_mover_y_atacar(seleccionada, ataques_posibles[celda], mapa.unidad_en(celda))
+				# Si la casilla es el Centro Urbano vacío, lo golpea.
+				var blanco = mapa.unidad_en(celda)
+				_mover_y_atacar(seleccionada, ataques_posibles[celda], blanco if blanco != null else celda)
 			elif _puede_mover(seleccionada) and celda == seleccionada.celda:
 				# Tocar otra vez la unidad: se queda quieta y abre el menú de acciones.
 				var u := seleccionada
@@ -309,12 +337,16 @@ func seleccionar(u: Unidad) -> void:
 	if u.equipo != equipo_actual:
 		resaltado.zona_ataque = _zona_ataque(u, alcance["destinos"])
 	for c in ataques_posibles:
+		if mapa.unidad_en(c) == null:  # el Centro Urbano
+			resaltado.etiquetas[c] = "-%d" % reglas.dano_estructura(u)
+			continue
 		var est := reglas.estimar(u, mapa.unidad_en(c), ataques_posibles[c])
 		resaltado.etiquetas[c] = "✖" if est["destruye"] else "-%d" % est["dano"]
 	resaltado.queue_redraw()
 	hud.mostrar_info(_texto_info(u), _en_pantalla(u.celda).x < get_viewport_rect().size.x / 2.0)
 	estado = Estado.SELECCIONADA
 	Sonido.reproducir("seleccion", -4.0)
+	evento.emit("seleccion", u)
 
 
 func deseleccionar() -> void:
@@ -381,6 +413,14 @@ func _calcular_ataques(u: Unidad) -> Dictionary:
 				mejor = d
 		if mejor.x >= 0:
 			resultado[e.celda] = mejor
+	# El Centro Urbano enemigo también se puede atacar (si no hay nadie encima).
+	var centro := reglas.centro_rival(u.equipo)
+	if mapa.en_mapa(centro) and mapa.se_ve(centro):
+		for d in desde_posibles:
+			if reglas.puede_atacar_centro_desde(u, d):
+				resultado[centro] = d
+				if d == u.celda:
+					break
 	return resultado
 
 
@@ -396,14 +436,14 @@ func _mostrar_prevision(atacante: Unidad, objetivo: Unidad, desde: Vector2i) -> 
 	extras.append("crítico %d%%" % int(est["critico"] * 100))
 	if est["flanqueo"] > 0:
 		extras.append("flanqueo +%d%%" % int(est["flanqueo"] * Reglas.BONO_FLANQUEO * 100))
-	var defensa: int = 0 if objetivo.es_aerea() else Datos.TERRENOS[mapa.terreno_en(objetivo.celda)]["defensa"]
+	var defensa: int = reglas.nivel_defensa(objetivo, objetivo.celda)
 	if defensa > 0:
-		extras.append("su terreno -%d%%" % (defensa * 10))
+		extras.append("su defensa -%d%%" % (defensa * 10))
 	texto += "\n" + " · ".join(extras)
 	hud.mostrar_info(texto, _en_pantalla(atacante.celda).x < get_viewport_rect().size.x / 2.0)
 
 
-func _mover_y_atacar(u: Unidad, desde: Vector2i, objetivo: Unidad) -> void:
+func _mover_y_atacar(u: Unidad, desde: Vector2i, objetivo) -> void:
 	atacando_directo = true
 	if desde != u.celda:
 		await mover(u, desde)
@@ -414,15 +454,31 @@ func _mover_y_atacar(u: Unidad, desde: Vector2i, objetivo: Unidad) -> void:
 		return  # cayó en una emboscada en el camino
 	u.ya_se_movio = true
 	estado = Estado.MOVIENDO
-	await ejecutar_ataque(u, objetivo)
+	if objetivo is Unidad:
+		await ejecutar_ataque(u, objetivo)
+	else:
+		await atacar_centro_animado(u)
 	estado = Estado.LIBRE
+
+
+## Golpear el Centro Urbano enemigo: animación rápida en el mapa y su barra de vida baja.
+func atacar_centro_animado(u: Unidad) -> void:
+	var centro := reglas.centro_rival(u.equipo)
+	if not mapa.en_mapa(centro) or not reglas.puede_atacar_centro_desde(u, u.celda):
+		return
+	var falso := Unidad.new()  # solo para reutilizar la animación (no se agrega al mapa)
+	falso.position = mapa.celda_a_pos(centro)
+	falso.celda = centro
+	await _embestida(u, falso)
+	falso.free()
+	reglas.atacar_centro(u)
 
 
 ## Ficha de una unidad. Corta al tocarla (2 líneas); completa al mantenerla presionada.
 func _texto_info(u: Unidad, completo := false) -> String:
 	var d := u.datos()
 	var rango := str(d["rango_min"]) if d["rango_min"] == d["rango_max"] else "%d-%d" % [d["rango_min"], d["rango_max"]]
-	var defensa: int = 0 if u.es_aerea() else Datos.TERRENOS[mapa.terreno_en(u.celda)]["defensa"]
+	var defensa: int = reglas.nivel_defensa(u, u.celda)
 	var texto := "%s  ♥%d/%d\n" % [u.nombre_con_rango(), u.vida, d["vida_max"]]
 	texto += "Mov %d · Alcance %s · Defensa %s" % [u.movimiento(), rango, "★".repeat(defensa) if defensa > 0 else "—"]
 	if u.equipo == equipo_actual:
@@ -475,6 +531,8 @@ func mover(u: Unidad, destino: Vector2i) -> void:
 		Sonido.reproducir("golpe")
 		reglas.marcar_lista(u)
 		return
+	if u.equipo == "azul":
+		evento.emit("movida", u)
 	unidad_movida.emit(u)
 
 
@@ -521,15 +579,61 @@ func _revisar_fin_de_turno(delta: float) -> void:
 	if _reloj_fin > 0.0:
 		return
 	_reloj_fin = 0.25
-	var sin_acciones := equipo_actual == "azul" and not turno_ia and not juego_terminado \
-		and estado == Estado.LIBRE and reglas.mapa != null
-	if sin_acciones:
-		for u in mapa.unidades_de("azul"):
-			if not u.ya_ataco and (not u.ya_se_movio or not reglas.objetivos_de(u).is_empty()):
-				if u.datos()["movimiento"] > 0 or not reglas.objetivos_de(u).is_empty():
-					sin_acciones = false
-					break
-	hud.resaltar_terminar(sin_acciones)
+	var mi_turno := equipo_actual == "azul" and not turno_ia and not juego_terminado and reglas.mapa != null
+	var pendientes := unidades_pendientes() if mi_turno else []
+	# Halo en las unidades con las que todavía se puede hacer algo.
+	for u in mapa.unidades_de("azul"):
+		u.halo = u in pendientes and estado != Estado.MOVIENDO
+	# Halo en el lugar donde se puede comprar (base o base temporal), si alcanza para algo.
+	var compra := {}
+	if mi_turno and puede_comprar_algo():
+		compra[reglas.celda_compra("azul")] = true
+	if compra.keys() != mapa.puntos_compra.keys():
+		mapa.puntos_compra = compra
+		mapa._marcas.queue_redraw()
+	hud.resaltar_terminar(mi_turno and estado == Estado.LIBRE and pendientes.is_empty())
+
+
+## Unidades del jugador que todavía pueden moverse o atacar este turno.
+func unidades_pendientes() -> Array:
+	var lista := []
+	if reglas.mapa == null:
+		return lista
+	for u in mapa.unidades_de("azul"):
+		if u.ya_ataco:
+			continue
+		var puede_atacar := not reglas.objetivos_de(u).is_empty() or reglas.puede_atacar_centro_desde(u, u.celda)
+		if (not u.ya_se_movio and u.datos()["movimiento"] > 0) or puede_atacar:
+			lista.append(u)
+	return lista
+
+
+func puede_comprar_algo() -> bool:
+	for t in Datos.UNIDADES:
+		if not Datos.UNIDADES[t].get("construccion", false) and reglas.motivo_no_compra(t, "azul") == "":
+			return true
+	return false
+
+
+## Botón "Terminar turno": si aún hay cosas por hacer, primero avisa.
+func _pedir_terminar_turno() -> void:
+	if estado == Estado.MOVIENDO or turno_ia or juego_terminado:
+		return
+	var pendientes := unidades_pendientes()
+	var cosas := []
+	if not pendientes.is_empty():
+		cosas.append("%d unidad%s sin usar" % [pendientes.size(), "es" if pendientes.size() > 1 else ""])
+	if puede_comprar_algo():
+		cosas.append("dinero para comprar ($%d)" % reglas.creditos["azul"])
+	if cosas.is_empty() or modo_prueba or tutorial != null:
+		terminar_turno()
+		return
+	deseleccionar()
+	_cerrar_menu()
+	estado = Estado.MENU
+	_mostrar_menu([["Aún tienes " + " y ".join(cosas) + ".", null],
+		["Terminar turno igual", func(): _cerrar_menu(); terminar_turno()],
+		["Seguir jugando", _cerrar_menu]])
 
 
 ## Truco secreto para la expo: tocar 5 veces seguidas el texto del dinero (arriba a la izquierda).
@@ -571,6 +675,25 @@ func _mostrar_curacion(u: Unidad, cantidad: int) -> void:
 	if mapa.se_ve(u.celda):
 		_numero_flotante(u.position, "+%d" % cantidad, Color(0.4, 1, 0.5))
 		u.destello(Color(0.5, 1, 0.5))
+
+
+func _mostrar_dano_centro(equipo: String, dano: int, vida: int) -> void:
+	var centro := mapa.buscar_edificio("cuartel", equipo)
+	if not mapa.en_mapa(centro):
+		return
+	var pos := mapa.celda_a_pos(centro)
+	Sonido.reproducir("destruccion" if vida <= 0 else "golpe")
+	Efectos.explosion(mapa, pos, 1.6 if vida <= 0 else 0.7)
+	_numero_flotante(pos, "-%d" % dano, Color(1, 0.35, 0.3), 12)
+	_numero_flotante(pos + Vector2(0, -10), "Centro: %d/%d" % [vida, Datos.VIDA_CENTRO], Color(1, 0.85, 0.3), 9)
+	sacudir_camara(2.5)
+
+
+func _avisar_base_temporal(equipo: String, celda: Vector2i) -> void:
+	if equipo != "azul":
+		return
+	hud.mostrar_aviso("Tu base no está disponible: ahora compras en este edificio (base temporal)", 3.0)
+	Efectos.chispas(mapa, mapa.celda_a_pos(celda), 16, 1.2, Color(1, 0.9, 0.35))
 
 
 ## Al terminar una captura: sonido, chispas del color del equipo y un letrerito.
@@ -926,6 +1049,8 @@ func _cerrar_menu() -> void:
 	resaltado.limpiar()
 	objetivos_actuales.clear()
 	_celdas_apuntar.clear()
+	_area_apuntar = Callable()
+	_celda_prevista = Vector2i(-1, -1)
 	objetivo_previsto = Vector2i(-1, -1)
 	unidad_menu = null
 	hud.ocultar_info()
@@ -938,7 +1063,8 @@ func _abrir_menu_unidad(u: Unidad) -> void:
 	resaltado.limpiar()
 	objetivos_actuales.assign(reglas.objetivos_de(u).filter(func(e): return mapa.se_ve(e.celda)))
 	var puede_capturar := reglas.puede_capturar(u)
-	if objetivos_actuales.is_empty() and not puede_capturar:
+	var puede_golpear_centro := reglas.puede_atacar_centro_desde(u, u.celda)
+	if objetivos_actuales.is_empty() and not puede_capturar and not puede_golpear_centro:
 		# No hay nada que elegir: la unidad termina sola, sin preguntar.
 		_accion_esperar()
 		return
@@ -956,7 +1082,10 @@ func _abrir_menu_unidad(u: Unidad) -> void:
 		opciones.append(["Toca un enemigo para atacar", null])
 		estado = Estado.OBJETIVO
 	if puede_capturar:
-		opciones.append(["Capturar", _accion_capturar])
+		var turnos := ceili(float(reglas.puntos_para_capturar(u.celda)) / maxi(1, u.vida))
+		opciones.append(["Capturar (%d turno%s)" % [turnos, "s" if turnos > 1 else ""], _accion_capturar])
+	if puede_golpear_centro:
+		opciones.append(["Golpear Centro Urbano (-%d)" % reglas.dano_estructura(u), _accion_golpear_centro])
 	opciones.append(["Esperar", _accion_esperar])
 	_mostrar_menu(opciones)
 	if not objetivos_actuales.is_empty():
@@ -967,12 +1096,22 @@ func _accion_capturar() -> void:
 	var u := unidad_menu
 	_cerrar_menu()
 	reglas.capturar(u)
+	evento.emit("captura", u)
+
+
+func _accion_golpear_centro() -> void:
+	var u := unidad_menu
+	_cerrar_menu()
+	estado = Estado.MOVIENDO
+	await atacar_centro_animado(u)
+	estado = Estado.LIBRE
 
 
 func _accion_esperar() -> void:
 	var u := unidad_menu
 	_cerrar_menu()
 	reglas.marcar_lista(u)
+	evento.emit("usada", u)
 
 
 # ---------------------------------------------------------------- tienda: unidades y habilidades
@@ -985,6 +1124,7 @@ func _on_tienda() -> void:
 
 
 func _abrir_compra() -> void:
+	evento.emit("tienda", null)
 	estado = Estado.MENU
 	_mostrar_menu([
 		["$%d   Población %d/%d" % [reglas.creditos[equipo_actual], reglas.poblacion(equipo_actual), reglas.limite_poblacion(equipo_actual)], null],
@@ -1000,7 +1140,7 @@ func _menu_unidades() -> void:
 		var d: Dictionary = Datos.UNIDADES[tipo]
 		var motivo := reglas.motivo_no_compra(tipo, equipo_actual)
 		var texto := "%s  $%d" % [d["nombre"], d["precio"]] + ("  (%s)" % motivo if motivo != "" else "")
-		opciones.append([texto, _comprar.bind(tipo), motivo != ""])
+		opciones.append([texto, _detalle_unidad.bind(tipo)])
 	opciones.append(["Volver", _abrir_compra])
 	_mostrar_menu(opciones)
 
@@ -1012,9 +1152,55 @@ func _menu_habilidades() -> void:
 		if h.get("solo_niebla", false) and not mapa.niebla_activa:
 			continue
 		var precio := reglas.precio_habilidad(nombre, equipo_actual)
-		var texto := "%s $%d: %s" % [h["nombre"], precio, h["texto"]]
-		opciones.append([texto, _usar_habilidad.bind(nombre), not reglas.puede_pagar_habilidad(nombre, equipo_actual)])
+		var texto := "%s  $%d" % [h["nombre"], precio]
+		opciones.append([texto, _detalle_habilidad.bind(nombre)])
 	opciones.append(["Volver", _abrir_compra])
+	_mostrar_menu(opciones)
+
+
+## Ficha de una unidad en la tienda: para decidir si vale la pena comprarla.
+func _detalle_unidad(tipo: String) -> void:
+	var d: Dictionary = Datos.UNIDADES[tipo]
+	var rango := str(d["rango_min"]) if d["rango_min"] == d["rango_max"] else "%d-%d" % [d["rango_min"], d["rango_max"]]
+	var opciones: Array = [
+		["%s  ·  $%d" % [d["nombre"], d["precio"]], null],
+		["♥%d · Mov %d · Alcance %s%s" % [d["vida_max"], d["movimiento"], rango, " · Vuela" if d.get("aerea", false) else ""], null],
+		["Fuerte contra: " + Datos.nombres(Datos.gana_a(tipo)), null],
+		["Débil contra: " + Datos.nombres(Datos.pierde_contra(tipo)), null],
+		["Daño a cada unidad (con crítico %d%%):" % int(Reglas.PROB_CRITICO * 100), null],
+	]
+	var linea := []
+	for t in Datos.UNIDADES:
+		var base: int = Datos.dano_base(tipo, t)
+		var dano := int(round(base / 10.0))
+		var texto := "%s —" % Datos.UNIDADES[t]["nombre"] if base == 0 else "%s %d (%d)" % [Datos.UNIDADES[t]["nombre"], dano, int(ceil(dano * Reglas.MULT_CRITICO))]
+		linea.append(texto)
+		if linea.size() == 2:
+			opciones.append(["   " + "  ·  ".join(linea), null])
+			linea = []
+	if d.get("construccion", false):
+		opciones.append(["Solo junto a tu Centro Urbano. No se mueve.", null])
+	var motivo := reglas.motivo_no_compra(tipo, equipo_actual)
+	opciones.append(["Comprar $%d" % d["precio"] + ("  (%s)" % motivo if motivo != "" else ""), _comprar.bind(tipo), motivo != ""])
+	opciones.append(["Volver", _menu_unidades])
+	_mostrar_menu(opciones)
+
+
+## Ficha de una habilidad en la tienda.
+func _detalle_habilidad(nombre: String) -> void:
+	var h: Dictionary = Datos.HABILIDADES[nombre]
+	var precio := reglas.precio_habilidad(nombre, equipo_actual)
+	var opciones: Array = [["%s  ·  $%d" % [h["nombre"], precio], null], [h["texto"], null]]
+	match nombre:
+		"bombardeo":
+			opciones.append(["%d de daño a cada enemigo del área. Deja mínimo 1 de vida." % Datos.DANO_BOMBARDEO, null])
+		"nuclear":
+			opciones.append(["Centro: 10 de daño · cerca: 8 · borde: 5", null])
+		"reparacion":
+			opciones.append(["+%d de vida (sin pasar del máximo)" % Datos.VIDA_REPARACION, null])
+	opciones.append(["El precio sube 50%% con cada uso (usada %d veces)" % reglas.usos_habilidad[equipo_actual].get(nombre, 0), null])
+	opciones.append(["Usar $%d" % precio, _usar_habilidad.bind(nombre), not reglas.puede_pagar_habilidad(nombre, equipo_actual)])
+	opciones.append(["Volver", _menu_habilidades])
 	_mostrar_menu(opciones)
 
 
@@ -1024,12 +1210,14 @@ func _comprar(tipo: String) -> void:
 		return
 	if reglas.comprar(tipo, equipo_actual):
 		Sonido.reproducir("compra")
+		evento.emit("compra", tipo)
 	_cerrar_menu()
 
 
 func _construir_torreta(celda: Vector2i) -> void:
 	if reglas.comprar("torreta", equipo_actual, celda):
 		Sonido.reproducir("compra")
+		evento.emit("compra", "torreta")
 
 
 func _usar_habilidad(nombre: String) -> void:
@@ -1046,7 +1234,7 @@ func _usar_habilidad(nombre: String) -> void:
 				for x in mapa.ancho:
 					if mapa.se_ve(Vector2i(x, y)):
 						todas.append(Vector2i(x, y))
-			_apuntar(todas, "Toca el centro del bombardeo (3x3)", _bombardear, true)
+			_apuntar(todas, "Bombardeo: toca dónde caerá (3x3)", _bombardear, true, _area_bombardeo)
 		"marcha":
 			_cerrar_menu()
 			if reglas.usar_marcha(equipo_actual):
@@ -1059,13 +1247,26 @@ func _usar_habilidad(nombre: String) -> void:
 				for x in mapa.ancho:
 					if mapa.se_ve(Vector2i(x, y)):
 						visibles.append(Vector2i(x, y))
-			_apuntar(visibles, "Toca el centro de la explosión", _lanzar_nuclear, true)
+			_apuntar(visibles, "Bomba nuclear: toca el centro (¡también le pega a lo tuyo!)", _lanzar_nuclear, true, reglas.area_nuclear)
 		"radar":
 			_cerrar_menu()
 			if reglas.usar_radar(equipo_actual):
 				estado = Estado.MOVIENDO
 				await animar_radar(equipo_actual)
 				estado = Estado.LIBRE
+
+
+## Área del bombardeo: 3x3 alrededor del centro, solo daña enemigos y no destruye.
+func _area_bombardeo(centro: Vector2i) -> Dictionary:
+	var area := {}
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			var c := centro + Vector2i(dx, dy)
+			if mapa.en_mapa(c):
+				var u := mapa.unidad_en(c)
+				if u == null or u.equipo != equipo_actual:
+					area[c] = Datos.DANO_BOMBARDEO
+	return area
 
 
 ## Primero la animación y después el efecto, para que el daño aparezca cuando caen las bombas.
@@ -1098,16 +1299,42 @@ func _reparar(celda: Vector2i) -> void:
 
 
 ## Modo "apuntar": se resaltan las casillas válidas y el siguiente toque decide.
-func _apuntar(celdas: Array[Vector2i], instruccion: String, accion: Callable, sin_resaltar := false) -> void:
+func _apuntar(celdas: Array[Vector2i], instruccion: String, accion: Callable, sin_resaltar := false,
+		area := Callable()) -> void:
 	if celdas.is_empty():
 		_cerrar_menu()
 		return
 	_mostrar_menu([[instruccion, null], ["Cancelar", _cerrar_menu]])
 	_celdas_apuntar = celdas
 	_al_apuntar = accion
+	_area_apuntar = area
+	_celda_prevista = Vector2i(-1, -1)
+	_instruccion_apuntar = instruccion
 	if not sin_resaltar:
 		resaltado.mostrar(celdas, Color(1, 0.85, 0.3, 0.45), Vector2i(-1, -1))
 	estado = Estado.APUNTAR
+
+
+## Muestra en el mapa el área que afectaría la habilidad y el daño sobre cada unidad.
+func _previsualizar_area(centro: Vector2i) -> void:
+	_celda_prevista = centro
+	var area: Dictionary = _area_apuntar.call(centro)
+	var celdas: Array[Vector2i] = []
+	celdas.assign(area.keys())
+	resaltado.mostrar(celdas, Color(1, 0.25, 0.1, 0.4), centro)
+	var afectadas := 0
+	for c in area:
+		var u := _unidad_visible(c)
+		if u != null:
+			var no_destruye := _al_apuntar == _bombardear  # el bombardeo deja mínimo 1 de vida
+			var dano: int = mini(area[c], u.vida - 1) if no_destruye else mini(area[c], u.vida)
+			resaltado.etiquetas[c] = ("✖" if dano >= u.vida else "-%d" % dano)
+			afectadas += 1
+	resaltado.queue_redraw()
+	_mostrar_menu([[_instruccion_apuntar, null],
+		["Afecta %d unidad%s. Toca otra vez para lanzar" % [afectadas, "es" if afectadas != 1 else ""], null],
+		["Cancelar", _cerrar_menu]], centro)
+	Sonido.reproducir("seleccion", -6.0)
 
 
 # ---------------------------------------------------------------- turnos
@@ -1136,13 +1363,16 @@ func terminar_turno() -> void:
 		hud.bloquear_botones(true)
 		if not modo_prueba:
 			await hud.mostrar_cartel("TURNO DEL ROJO", Color(0.8, 0.2, 0.2))
-		await ia.jugar_turno()
+		if tutorial == null:  # en el tutorial el rojo se queda quieto
+			await ia.jugar_turno()
 		turno_ia = false
 		hud.bloquear_botones(false)
 		if not juego_terminado:
 			terminar_turno()
-	elif not modo_prueba:
-		await hud.mostrar_cartel("TU TURNO", Color(0.2, 0.45, 0.9))
+	else:
+		evento.emit("turno_azul", numero_turno)
+		if not modo_prueba:
+			await hud.mostrar_cartel("TU TURNO", Color(0.2, 0.45, 0.9))
 
 
 func _on_partida_terminada(ganador: String) -> void:

@@ -142,11 +142,11 @@ func _initialize() -> void:
 	mapa.crear_unidad("tanque", "azul", Vector2i(2, 1))
 	mapa.crear_unidad("tanque", "rojo", Vector2i(6, 1))
 	var inf := mapa.crear_unidad("infanteria", "azul", Vector2i(8, 0))
-	reglas.capturar(inf)
-	inf.reiniciar_turno()
-	reglas.capturar(inf)
+	for turno in 3:  # el Centro Urbano tarda 3 turnos en capturarse
+		reglas.capturar(inf)
+		inf.reiniciar_turno()
 	await process_frame
-	revisar(main.juego_terminado and "Unidades destruidas" in main.get_node("%EstadisticasFin").text, "capturar el cuartel gana y muestra estadísticas")
+	revisar(main.juego_terminado and "Unidades destruidas" in main.get_node("%EstadisticasFin").text, "capturar el Centro Urbano gana y muestra estadísticas")
 	main.juego_terminado = false
 	main.hud.cerrar_todo()
 
