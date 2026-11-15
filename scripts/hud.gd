@@ -28,6 +28,8 @@ var _tween_terminar: Tween
 
 
 var _toques_truco: Array[float] = []
+## Espacio reservado abajo (en el tutorial): la ficha de la unidad se pone encima.
+var margen_inferior := 0.0
 
 
 func _ready() -> void:
@@ -97,7 +99,7 @@ func mostrar_info(texto: String, a_la_derecha: bool) -> void:
 	panel.size = Vector2.ZERO
 	panel.reset_size()
 	var ancho_pantalla := panel.get_viewport_rect().size.x
-	panel.position = Vector2(ancho_pantalla - panel.size.x - 4 if a_la_derecha else 4.0, 270 - panel.size.y - 4)
+	panel.position = Vector2(ancho_pantalla - panel.size.x - 4 if a_la_derecha else 4.0, 270 - margen_inferior - panel.size.y - 4)
 	panel.show()
 
 

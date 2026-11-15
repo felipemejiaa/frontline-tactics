@@ -50,7 +50,11 @@ func _jugar_unidad(u: Unidad) -> void:
 	var retirarse: bool = config()["retirada"] and herida and (ataque.is_empty() or not ataque["destruye"])
 	if not ataque.is_empty() and not retirarse:
 		await main.mover(u, ataque["desde"])
-		if is_instance_valid(u) and is_instance_valid(ataque["objetivo"]):
+		if not is_instance_valid(u):
+			return
+		if ataque["objetivo"] is String:  # el Centro Urbano del jugador
+			await main.atacar_centro_animado(u)
+		elif is_instance_valid(ataque["objetivo"]):
 			ataque_elegido.emit(u, ataque["objetivo"])
 			await main.ejecutar_ataque(u, ataque["objetivo"])
 		return
@@ -79,6 +83,17 @@ func _elegir_ataque(u: Unidad, destinos: Array[Vector2i]) -> Dictionary:
 			var est: Dictionary = main.reglas.estimar(u, objetivo, desde)
 			opciones.append({"desde": desde, "objetivo": objetivo, "destruye": est["destruye"],
 				"puntaje": _puntaje_ataque(u, objetivo, desde, est)})
+	# Golpear el Centro Urbano del jugador si está vacío y al alcance.
+	var centro: Vector2i = main.reglas.centro_rival(equipo)
+	if mapa.en_mapa(centro):
+		for desde in destinos:
+			if u.datos()["rango_min"] > 1 and desde != u.celda:
+				continue
+			if main.reglas.puede_atacar_centro_desde(u, desde):
+				var golpe: int = main.reglas.dano_estructura(u)
+				var vida_c: int = main.reglas.vida_centro.get(_equipo_rival(), 99)
+				opciones.append({"desde": desde, "objetivo": "centro", "destruye": golpe >= vida_c,
+					"puntaje": golpe * 2.0 + 4.0 + (40.0 if golpe >= vida_c else 0.0)})
 	if opciones.is_empty():
 		return {}
 	if randf() < config()["torpeza"]:
@@ -123,6 +138,9 @@ func _mejor_acercamiento(u: Unidad, destinos: Array[Vector2i]) -> Vector2i:
 	if objetivos.is_empty():
 		for e in _enemigos_de(u):
 			objetivos.append(e.celda)
+		var centro: Vector2i = main.reglas.centro_rival(equipo)
+		if mapa.en_mapa(centro) and Datos.DANO_ESTRUCTURA.get(u.tipo, 0) > 0:
+			objetivos.append(centro)
 	return _mas_cercano_a(u, destinos, objetivos)
 
 

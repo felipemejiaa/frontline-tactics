@@ -18,8 +18,8 @@ const TERRENOS := {
 	"bosque": {"nombre": "Bosque", "defensa": 2, "tile": Vector2i(1, 0), "adorno": Vector2i(4, 6)},
 	"montana": {"nombre": "Montaña", "defensa": 3, "tile": Vector2i(1, 0), "adorno": Vector2i(5, 0)},
 	"agua": {"nombre": "Agua", "defensa": 0, "tile": Vector2i(1, 2)},
-	"cuartel": {"nombre": "Cuartel general", "defensa": 3, "tile": Vector2i(1, 0),
-		"adorno_azul": Vector2i(9, 2), "adorno_rojo": Vector2i(9, 3)},
+	"cuartel": {"nombre": "Centro Urbano", "defensa": 3, "tile": Vector2i(1, 0),
+		"adorno_azul": Vector2i(14, 2), "adorno_rojo": Vector2i(14, 3)},
 	"base": {"nombre": "Base", "defensa": 2, "tile": Vector2i(1, 0),
 		"adorno_azul": Vector2i(15, 2), "adorno_rojo": Vector2i(15, 3)},
 	"ciudad": {"nombre": "Ciudad", "defensa": 2, "tile": Vector2i(1, 0),
@@ -32,6 +32,21 @@ const INGRESO_POR_EDIFICIO := 500
 const POBLACION_BASE := 3
 ## Vida que recupera una unidad que empieza el turno en un edificio propio.
 const CURACION := 2
+
+## Defensa extra (niveles, cada uno quita 10 % de daño) de una unidad dentro de un edificio PROPIO.
+## Se suma a la defensa normal del terreno. La infantería es la que mejor se atrinchera.
+const BONO_DEFENSA_PROPIO := {"infanteria": 2, "tanque": 1, "artilleria": 1, "antiaerea": 1,
+	"helicoptero": 0, "torreta": 0}
+
+## Puntos para capturar cada edificio (la infantería suma su vida por turno: 10 con vida completa).
+## Ciudad y base: 2 turnos. Centro Urbano: 3 turnos.
+const PUNTOS_CAPTURA := {"ciudad": 20, "base": 20, "cuartel": 30}
+
+## El Centro Urbano también se puede destruir a golpes: tiene esta vida...
+const VIDA_CENTRO := 30
+## ...y cada unidad sana le quita esto por ataque (menos si está herida). Unos 6 ataques en total.
+const DANO_ESTRUCTURA := {"infanteria": 3, "tanque": 5, "artilleria": 6, "helicoptero": 5,
+	"antiaerea": 3, "torreta": 0}
 
 const TERRESTRE := {"llanura": 1, "bosque": -1, "montana": -1, "agua": -1, "cuartel": 1, "base": 1, "ciudad": 1}
 

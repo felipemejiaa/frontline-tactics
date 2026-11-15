@@ -35,6 +35,10 @@ var duenos := {}
 var unidades := {}
 ## Captura a medias: celda -> [fracción 0..1, equipo que captura]
 var progreso_captura := {}
+## Vida de los Centros Urbanos: celda -> fracción 0..1
+var vida_centros := {}
+## Casillas donde el jugador puede comprar ahora (base o base temporal): se marcan con un halo.
+var puntos_compra := {}
 ## Capa que se dibuja encima de las unidades: banderas de dueño y barras de captura.
 var _marcas := Marcas.new()
 ## Zona de peligro: casillas que el enemigo puede atacar el próximo turno.
@@ -86,6 +90,8 @@ func cargar_desde_texto(lineas: Array) -> void:
 	duenos.clear()
 	terrenos.clear()
 	progreso_captura.clear()
+	vida_centros.clear()
+	puntos_compra.clear()
 	zona_peligro.clear()
 	explorado.clear()
 	visible_ahora.clear()
@@ -127,6 +133,11 @@ func cambiar_dueno(celda: Vector2i, equipo: String) -> void:
 		duenos[celda] = equipo
 		queue_redraw()
 		_marcas.queue_redraw()
+
+
+func mostrar_vida_centro(celda: Vector2i, fraccion: float) -> void:
+	vida_centros[celda] = fraccion
+	_marcas.queue_redraw()
 
 
 ## Barra de captura sobre un edificio (fracción 0 = sin barra).
@@ -318,6 +329,38 @@ class Marcas extends Node2D:
 			var base := Vector2(c * t) + Vector2(1, t - 4)
 			draw_rect(Rect2(base, Vector2(t - 2, 3)), Color(0, 0, 0, 0.75))
 			draw_rect(Rect2(base + Vector2(0.5, 0.5), Vector2((t - 3) * fraccion, 2)), color)
+		# Centro Urbano: estrella dorada (para reconocerlo de lejos) y su vida si lo han golpeado.
+		for c in mapa.duenos:
+			if mapa.terreno_en(c) != "cuartel":
+				continue
+			_estrella(Vector2(c * t) + Vector2(t - 3, 5), 4.0)
+			var vida: float = mapa.vida_centros.get(c, 1.0)
+			if vida < 1.0:
+				var arriba := Vector2(c * t) + Vector2(1, -4)
+				draw_rect(Rect2(arriba, Vector2(t - 2, 3)), Color(0, 0, 0, 0.8))
+				draw_rect(Rect2(arriba + Vector2(0.5, 0.5), Vector2((t - 3) * vida, 2)),
+					Color(0.35, 0.9, 0.4) if vida > 0.5 else (Color(1, 0.8, 0.25) if vida > 0.25 else Color(1, 0.3, 0.25)))
+		# Halo que late donde el jugador puede comprar.
+		var latido := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 250.0)
+		for c in mapa.puntos_compra:
+			var r := Rect2(Vector2(c * t), Vector2(t, t)).grow(0.5 + latido)
+			draw_rect(r, Color(1, 0.9, 0.35, 0.4 + 0.5 * latido), false, 1.0)
+
+	func _process(_delta: float) -> void:
+		if not mapa.puntos_compra.is_empty():
+			queue_redraw()
+
+	func _estrella(centro: Vector2, radio: float) -> void:
+		var puntos := PackedVector2Array()
+		for i in 10:
+			var ang := -PI / 2 + i * PI / 5
+			var r := radio if i % 2 == 0 else radio * 0.45
+			puntos.append(centro + Vector2(cos(ang), sin(ang)) * r)
+		var borde := PackedVector2Array()
+		for p in puntos:
+			borde.append(centro + (p - centro) * 1.35)
+		draw_colored_polygon(borde, Color(0.15, 0.1, 0.0))
+		draw_colored_polygon(puntos, Color(1, 0.85, 0.2))
 
 
 # ---------------------------------------------------------------- niebla y peligro

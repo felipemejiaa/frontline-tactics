@@ -5,3 +5,4 @@ extends RefCounted
 
 static var dificultad := "normal"   # "facil", "normal" o "dificil" (ver Datos.DIFICULTADES)
 static var niebla := false
+static var tutorial := false   # "Cómo jugar" abre la partida guiada

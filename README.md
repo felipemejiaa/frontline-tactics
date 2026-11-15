@@ -50,7 +50,13 @@ El número es cuántos puntos de movimiento gasta entrar a esa casilla.
 - **Habilidades** (Tienda), cada una con su animación: Reparación (corazón), Bombardeo (un avión suelta bombas), Marcha forzada (las unidades saltan), Radar (ondas, solo con niebla) y **Bomba nuclear** ($15000, radio 3, destruye en el centro y también le pega a lo tuyo). Cada uso sube el precio.
 - **Fichas:** tocar una unidad muestra una ficha corta; mantenerla presionada muestra la completa.
 - **Niebla:** negro = sin explorar, gris = explorado sin vista. Pasar por donde hay un enemigo escondido es una emboscada.
-- **Victoria:** capturar el cuartel enemigo, o dejarlo sin unidades y sin forma de comprar.
+- **Centro Urbano** (el edificio con estrella dorada): se gana capturándolo (3 turnos de infantería) o destruyéndolo a golpes (unos 6 ataques; solo si no hay nadie encima). También se gana dejando al rival sin unidades y sin forma de comprar.
+- **Defensa en edificios propios:** una unidad dentro de un edificio de su equipo recibe menos daño (infantería +2 niveles, vehículos +1). Dejar un tanque en tu Centro Urbano impide que lo capturen o lo golpeen.
+- **Base temporal:** si pierdes tu base o el enemigo la está capturando, el juego elige al azar otro edificio tuyo para comprar.
+- **Halo:** lo que brilla es lo que todavía puedes usar (unidades y el lugar donde comprar). Antes de pasar turno, el juego avisa si quedan cosas por hacer.
+- **Tienda:** cada unidad y habilidad tiene su ficha (contra quién es fuerte o débil y cuánto daño hace, con crítico) antes de comprar.
+- **Habilidades de área** (bombardeo y nuclear): el primer toque muestra el área y el daño; otro toque en la misma casilla la lanza.
+- **Cómo jugar:** tutorial interactivo paso a paso (`scripts/tutorial.gd`).
 
 ## Estructura
 
@@ -65,7 +71,8 @@ scripts/sonido.gd       Efectos de sonido (`Sonido.reproducir("disparo")`)
 assets/sonidos/         Sonidos generados con herramientas/generar_sonidos.py
 ui/tema.tres            Estilo de botones y paneles (se aplica a todo el juego)
 scripts/datos.gd        Datos de terrenos, unidades, ventajas, habilidades y dificultades
-scripts/config.gd       Opciones de la partida (dificultad y niebla)
+scripts/config.gd       Opciones de la partida (dificultad, niebla, tutorial)
+scripts/tutorial.gd     Tutorial interactivo de "Cómo jugar"
 scripts/game_map.gd     Mapa, edificios y dueños, posiciones de las unidades y cálculo de movimiento
 scripts/generador_mapa.gd  Mapas aleatorios simétricos (26×15) con ciudades
 scripts/unidad.gd       Una unidad: tipo, equipo, vida, si ya se movió
@@ -120,6 +127,8 @@ godot --headless --path . --script res://tests/prueba_menus.gd
 godot --headless --path . --script res://tests/prueba_reglas.gd
 godot --headless --path . --script res://tests/prueba_animaciones.gd
 godot --headless --path . --script res://tests/prueba_estrategia.gd
+godot --headless --path . --script res://tests/prueba_tutorial.gd
+godot --headless --path . --script res://tests/prueba_ajustes.gd
 ```
 
 ## Créditos
