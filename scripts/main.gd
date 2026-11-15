@@ -60,8 +60,10 @@ var _celda_prevista := Vector2i(-1, -1)
 var _instruccion_apuntar := ""
 # --- cámara ---
 var camara := Camera2D.new()
-## Espacio de arriba que no debe tapar el mapa (la barra; en el tutorial, también su letrero).
+## Espacio de arriba que no debe tapar el mapa (la barra del HUD).
 var alto_barra := ALTO_BARRA
+## Espacio de abajo reservado (en el tutorial, para su letrero).
+var margen_inferior := 0.0
 var _presionado := false
 var _arrastrando := false
 var _inicio_toque := Vector2.ZERO
@@ -175,8 +177,10 @@ func _limitar_camara(pos: Vector2) -> Vector2:
 	var max_x := tamano.x + margen - vista.x / 2.0
 	resultado.x = tamano.x / 2.0 if max_x < min_x else clampf(pos.x, min_x, max_x)
 	var min_y := vista.y / 2.0 - alto_barra - margen
-	var max_y := tamano.y + margen - vista.y / 2.0
-	resultado.y = (tamano.y - alto_barra) / 2.0 if max_y < min_y else clampf(pos.y, min_y, max_y)
+	var max_y := tamano.y + margen + margen_inferior - vista.y / 2.0
+	# Si el mapa cabe, se centra en el espacio libre entre la barra de arriba y el margen de abajo.
+	var centro_libre := (alto_barra + vista.y - margen_inferior) / 2.0
+	resultado.y = tamano.y / 2.0 + vista.y / 2.0 - centro_libre if max_y < min_y else clampf(pos.y, min_y, max_y)
 	return resultado
 
 

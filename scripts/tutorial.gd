@@ -59,7 +59,7 @@ func preparar(main_ref: Node) -> void:
 	mapa.crear_unidad("tanque", "rojo", Vector2i(10, 3))
 	mapa.crear_unidad("artilleria", "rojo", Vector2i(11, 5))
 	_construir()
-	main.alto_barra = 128.0  # el mapa queda debajo del letrero del tutorial
+
 	main.evento.connect(_on_evento)
 	main._empezar_partida()
 	_mostrar_paso()
@@ -68,7 +68,7 @@ func preparar(main_ref: Node) -> void:
 func _construir() -> void:
 	_panel = PanelContainer.new()
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_panel.position = Vector2(40, 33)
+	_panel.position = Vector2(40, 200)  # abajo: así no tapa los botones ni los menús
 	var caja := VBoxContainer.new()
 	caja.add_theme_constant_override("separation", 2)
 	_panel.add_child(caja)
@@ -111,9 +111,21 @@ func _mostrar_paso() -> void:
 		_boton("Saltar tutorial", func():
 			Config.tutorial = false
 			main.get_tree().change_scene_to_file("res://scenes/menu_principal.tscn"))
+	_panel.size = Vector2.ZERO
 	_panel.reset_size()
+	_acomodar_abajo()
 	_apuntar_flecha(PASOS[paso][1])
 	Sonido.reproducir("seleccion", -6.0)
+
+
+## El letrero va pegado abajo; el mapa y la ficha de la unidad se corren hacia arriba para no quedar tapados.
+func _acomodar_abajo() -> void:
+	await get_tree().process_frame  # esperar a que el texto calcule su tamaño
+	_panel.reset_size()
+	_panel.position = Vector2((480 - _panel.size.x) / 2.0, 270 - _panel.size.y - 4)
+	main.margen_inferior = _panel.size.y + 8
+	main.hud.margen_inferior = _panel.size.y + 8
+	main.camara.position = main._limitar_camara(main.camara.position)
 
 
 func _boton(texto: String, accion: Callable) -> void:
