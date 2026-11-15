@@ -36,7 +36,7 @@ func _initialize() -> void:
 	current_scene = menu
 	await process_frame
 	await process_frame
-	revisar(menu.mapa_fondo.unidades.size() == 8, "hay un mapa con unidades de fondo")
+	revisar(menu.mapa_fondo.unidades.size() == 6, "hay un mapa con unidades de fondo")
 	await tocar(centro_de(menu.get_node("%BotonComoJugar")))
 	revisar(menu.ayuda.visible, "Cómo jugar abre la ayuda")
 	await tocar(centro_de(menu.get_node("%BotonVolver")))

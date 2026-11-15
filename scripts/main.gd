@@ -1,6 +1,6 @@
 extends Node2D
 ## Escena principal: recibe los toques en pantalla y controla la selección, el movimiento,
-## los menús de acciones y de tienda, la cámara, la niebla y la zona de peligro.
+## los menús de acciones y de tienda, la cámara y la niebla.
 
 ## Se emite cuando una unidad termina de moverse.
 signal unidad_movida(unidad: Unidad)
@@ -49,9 +49,6 @@ var caja_menu: VBoxContainer
 ## Al apuntar una habilidad o una torreta: casillas válidas y qué hacer al tocar una.
 var _celdas_apuntar: Array[Vector2i] = []
 var _al_apuntar: Callable
-## Zona de peligro (botón "Peligro").
-var mostrar_peligro := false
-var _reloj_peligro := 0.0
 # --- cámara ---
 var camara := Camera2D.new()
 var _presionado := false
@@ -74,7 +71,7 @@ func _ready() -> void:
 	reglas.unidad_curada.connect(_mostrar_curacion)
 	reglas.ciudad_capturada.connect(_celebrar_captura)
 	hud.tienda_pedida.connect(_on_tienda)
-	hud.peligro_alternado.connect(_alternar_peligro)
+	hud.truco_dinero.connect(_alternar_dinero_infinito)
 	unidad_movida.connect(_on_unidad_movida)
 	_construir_interfaz()
 	hud.terminar_turno_pedido.connect(terminar_turno)
@@ -95,11 +92,6 @@ func _process(delta: float) -> void:
 	_revisar_fin_de_turno(delta)
 	if mapa.niebla_activa:
 		mapa.actualizar_vision("azul", reglas.radar_activo.has("azul"))
-	if mostrar_peligro:
-		_reloj_peligro -= delta
-		if _reloj_peligro <= 0.0:
-			_reloj_peligro = 0.3
-			mapa.mostrar_peligro(calcular_peligro("azul"))
 
 
 ## Genera un mapa aleatorio. Con semilla_fija >= 0 repite siempre el mismo mapa.
@@ -143,9 +135,6 @@ func _empezar_partida() -> void:
 	reglas.al_empezar_turno(equipo_actual)  # el azul cobra al empezar
 	mapa.niebla_activa = Config.niebla and not modo_prueba
 	mapa.actualizar_vision("azul")
-	mostrar_peligro = false
-	mapa.mostrar_peligro({})
-	hud.marcar_peligro(false)
 	mapa.position = Vector2.ZERO
 	var cuartel := mapa.buscar_edificio("cuartel", "azul")
 	camara.position = _limitar_camara(mapa.celda_a_pos(cuartel) if mapa.en_mapa(cuartel) else Vector2.ZERO)
@@ -239,7 +228,7 @@ func _toque_largo(pos: Vector2) -> void:
 	else:
 		var u := _unidad_visible(celda)
 		if u != null:
-			hud.mostrar_info(_texto_info(u), _en_pantalla(celda).x < get_viewport_rect().size.x / 2.0)
+			hud.mostrar_info(_texto_info(u, true), _en_pantalla(celda).x < get_viewport_rect().size.x / 2.0)
 	Sonido.reproducir("seleccion", -8.0)
 
 
@@ -399,23 +388,18 @@ func _calcular_ataques(u: Unidad) -> Dictionary:
 func _mostrar_prevision(atacante: Unidad, objetivo: Unidad, desde: Vector2i) -> void:
 	objetivo_previsto = objetivo.celda
 	var est := reglas.estimar(atacante, objetivo, desde)
-	var texto := "Atacar a %s (vida %d)\n" % [objetivo.nombre_con_rango(), objetivo.vida]
-	if est["destruye"]:
-		texto += "Harás ~%d: ¡lo destruyes!\n" % est["dano"]
-	else:
-		texto += "Harás ~%d (le quedan ~%d)\n" % [est["dano"], objetivo.vida - est["dano"]]
-		texto += ("Te devuelve ~%d" % est["contra"]) + (" ¡y te destruye!" if est["muere"] else "") + "\n" if est["contra"] > 0 else "No puede contraatacar\n"
-	texto += "Crítico: %d%% (x1.5)%s\n" % [int(est["critico"] * 100), " ¡lo destruiría!" if est["destruye_critico"] and not est["destruye"] else ""]
-	if Datos.le_gana(atacante.tipo, objetivo.tipo):
-		texto += "Ventaja de tipo ✓  "
-	elif Datos.le_gana(objetivo.tipo, atacante.tipo):
-		texto += "Desventaja de tipo ✗  "
+	var texto := "%s ♥%d: " % [objetivo.nombre_con_rango(), objetivo.vida]
+	texto += "¡lo destruyes! (-%d)" % est["dano"] if est["destruye"] else "-%d, le quedan %d" % [est["dano"], objetivo.vida - est["dano"]]
+	var extras := []
+	if not est["destruye"]:
+		extras.append("te devuelve -%d%s" % [est["contra"], " ¡y te destruye!" if est["muere"] else ""] if est["contra"] > 0 else "sin contraataque")
+	extras.append("crítico %d%%" % int(est["critico"] * 100))
 	if est["flanqueo"] > 0:
-		texto += "Flanqueo +%d%%  " % int(est["flanqueo"] * Reglas.BONO_FLANQUEO * 100)
+		extras.append("flanqueo +%d%%" % int(est["flanqueo"] * Reglas.BONO_FLANQUEO * 100))
 	var defensa: int = 0 if objetivo.es_aerea() else Datos.TERRENOS[mapa.terreno_en(objetivo.celda)]["defensa"]
 	if defensa > 0:
-		texto += "Su terreno: -%d%%" % (defensa * 10)
-	texto += "\nSuelta y toca al enemigo para atacar"
+		extras.append("su terreno -%d%%" % (defensa * 10))
+	texto += "\n" + " · ".join(extras)
 	hud.mostrar_info(texto, _en_pantalla(atacante.celda).x < get_viewport_rect().size.x / 2.0)
 
 
@@ -434,22 +418,23 @@ func _mover_y_atacar(u: Unidad, desde: Vector2i, objetivo: Unidad) -> void:
 	estado = Estado.LIBRE
 
 
-func _texto_info(u: Unidad) -> String:
+## Ficha de una unidad. Corta al tocarla (2 líneas); completa al mantenerla presionada.
+func _texto_info(u: Unidad, completo := false) -> String:
 	var d := u.datos()
 	var rango := str(d["rango_min"]) if d["rango_min"] == d["rango_max"] else "%d-%d" % [d["rango_min"], d["rango_max"]]
 	var defensa: int = 0 if u.es_aerea() else Datos.TERRENOS[mapa.terreno_en(u.celda)]["defensa"]
-	var fuerza := int(100.0 * u.vida / d["vida_max"] * (1.0 + Reglas.BONO_RANGO * u.rango))
-	var texto := "%s (%s)   Vida %d/%d\n" % [u.nombre_con_rango(), u.equipo, u.vida, d["vida_max"]]
-	texto += "Mov %d   Alcance %s   Fuerza %d%%   Defensa %s\n" % [u.movimiento(), rango, fuerza, "★".repeat(defensa) if defensa > 0 else "—"]
-	texto += "Gana a: %s\nPierde contra: %s" % [Datos.nombres(Datos.VENTAJAS.get(u.tipo, [])), Datos.nombres(Datos.pierde_contra(u.tipo))]
-	if u.equipo != equipo_actual:
-		texto += "\nNaranja: se mueve · Rojo: hasta donde ataca"
+	var texto := "%s  ♥%d/%d\n" % [u.nombre_con_rango(), u.vida, d["vida_max"]]
+	texto += "Mov %d · Alcance %s · Defensa %s" % [u.movimiento(), rango, "★".repeat(defensa) if defensa > 0 else "—"]
 	if u.equipo == equipo_actual:
 		var peligro: int = calcular_peligro(u.equipo).get(u.celda, 0)
 		if peligro > 0:
-			texto += "\n⚠ Aquí te pueden atacar %d enemigo%s" % [peligro, "s" if peligro > 1 else ""]
-	if not ataques_posibles.is_empty():
-		texto += "\nToca un enemigo en rojo para atacarlo (mantén para ver detalles)"
+			texto += " · ⚠%d" % peligro
+	if completo:
+		var fuerza := int(100.0 * u.vida / d["vida_max"] * (1.0 + Reglas.BONO_RANGO * u.rango))
+		texto += "\nFuerza %d%% · Crítico %d%%" % [fuerza, int(reglas.prob_critico(u) * 100)]
+		texto += "\nFuerte contra: %s\nDébil contra: %s" % [Datos.nombres(Datos.gana_a(u.tipo)), Datos.nombres(Datos.pierde_contra(u.tipo))]
+		if u.equipo != equipo_actual:
+			texto += "\nNaranja: se mueve · Rojo: ataca"
 	return texto
 
 
@@ -501,7 +486,7 @@ func _on_unidad_movida(u: Unidad) -> void:
 	_abrir_menu_unidad(u)
 
 
-# ---------------------------------------------------------------- zona de peligro
+# ---------------------------------------------------------------- peligro (para el aviso ⚠ de la ficha)
 
 ## Casillas que el enemigo de "equipo" puede atacar el próximo turno: celda -> cuántos enemigos.
 ## Con niebla solo cuenta los enemigos que se ven.
@@ -547,13 +532,13 @@ func _revisar_fin_de_turno(delta: float) -> void:
 	hud.resaltar_terminar(sin_acciones)
 
 
-func _alternar_peligro() -> void:
-	mostrar_peligro = not mostrar_peligro
-	hud.marcar_peligro(mostrar_peligro)
-
-	_reloj_peligro = 0.0
-	if not mostrar_peligro:
-		mapa.mostrar_peligro({})
+## Truco secreto para la expo: tocar 5 veces seguidas el texto del dinero (arriba a la izquierda).
+func _alternar_dinero_infinito() -> void:
+	Reglas.dinero_infinito = not Reglas.dinero_infinito
+	reglas.aplicar_dinero_infinito()
+	_actualizar_hud()
+	Sonido.reproducir("compra" if Reglas.dinero_infinito else "clic")
+	hud.mostrar_aviso("Modo prueba: dinero infinito " + ("ACTIVADO" if Reglas.dinero_infinito else "desactivado"), 2.0)
 
 
 # ---------------------------------------------------------------- efectos en el mapa
@@ -576,7 +561,10 @@ func _numero_flotante(pos: Vector2, texto: String, color: Color, tamano := 12) -
 
 func _mostrar_dano_bombardeo(u: Unidad, dano: int) -> void:
 	_numero_flotante(u.position, "-%d" % dano, Color(1, 0.35, 0.3))
-	u.destello()
+	if u.vida > 0:
+		u.destello()
+	else:
+		Efectos.explosion(mapa, u.position, 1.3)
 
 
 func _mostrar_curacion(u: Unidad, cantidad: int) -> void:
@@ -658,6 +646,86 @@ func _soltar_bombas(columna: Vector2i, altura: float) -> void:
 			Efectos.explosion(mapa, destino, 0.8)
 			bomba.queue_free())
 	get_tree().create_timer(0.28).timeout.connect(Sonido.reproducir.bind("explosion", -2.0))
+
+
+## Bomba nuclear: sirena y zona en rojo, cae el misil, destello blanco, onda expansiva y hongo.
+func animar_nuclear(centro: Vector2i) -> void:
+	await enfocar_celda(centro)
+	var pos := mapa.celda_a_pos(centro)
+	var t := Datos.TAM_CASILLA
+	# 1. Alarma: la zona afectada parpadea en rojo.
+	Sonido.reproducir("sirena")
+	var zona := Node2D.new()
+	zona.z_index = 7
+	mapa.add_child(zona)
+	for c in reglas.area_nuclear(centro):
+		var r := ColorRect.new()
+		r.color = Color(1, 0.0, 0.0, 0.55)
+		r.size = Vector2(t, t)
+		r.position = Vector2(c * t)
+		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		zona.add_child(r)
+	var tw := zona.create_tween().set_loops(3)
+	tw.tween_property(zona, "modulate:a", 0.2, 0.3)
+	tw.tween_property(zona, "modulate:a", 1.0, 0.3)
+	await get_tree().create_timer(1.8).timeout
+	zona.queue_free()
+	# 2. Cae el misil con su estela de fuego.
+	var misil := Node2D.new()
+	misil.z_index = 26
+	var cuerpo := ColorRect.new()
+	cuerpo.color = Color(0.85, 0.87, 0.9)
+	cuerpo.size = Vector2(5, 16)
+	cuerpo.position = Vector2(-2.5, -16)
+	misil.add_child(cuerpo)
+	var punta := ColorRect.new()
+	punta.color = Color(0.9, 0.15, 0.1)
+	punta.size = Vector2(5, 4)
+	punta.position = Vector2(-2.5, 0)
+	misil.add_child(punta)
+	var estela := CPUParticles2D.new()
+	estela.amount = 30
+	estela.lifetime = 0.4
+	estela.direction = Vector2.UP
+	estela.spread = 15.0
+	estela.initial_velocity_min = 20.0
+	estela.initial_velocity_max = 40.0
+	estela.scale_amount_min = 1.5
+	estela.scale_amount_max = 3.0
+	estela.color = Color(1, 0.6, 0.2)
+	estela.position = Vector2(0, -16)
+	misil.add_child(estela)
+	misil.position = pos + Vector2(0, -get_viewport_rect().size.y)
+	mapa.add_child(misil)
+	Sonido.reproducir("canon", -4.0)
+	var caida := misil.create_tween()
+	caida.tween_property(misil, "position", pos, 0.7).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	await caida.finished
+	misil.queue_free()
+	# 3. ¡Boom! Destello blanco, temblor, ondas, explosiones y hongo de humo.
+	Sonido.reproducir("nuclear")
+	var capa := CanvasLayer.new()
+	capa.layer = 9
+	var destello := ColorRect.new()
+	destello.color = Color(1, 1, 0.92)
+	destello.size = get_viewport_rect().size
+	destello.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	capa.add_child(destello)
+	add_child(capa)
+	var tw_d := destello.create_tween()
+	tw_d.tween_property(destello, "modulate:a", 0.0, 1.0).set_delay(0.1)
+	tw_d.tween_callback(capa.queue_free)
+	sacudir_camara(7.0, 16)
+	for k in 3:
+		Efectos.onda(mapa, pos, 75.0 + k * 15, Color(1, 0.65 - k * 0.15, 0.2), 0.9 + k * 0.2)
+	Efectos.explosion(mapa, pos, 4.0)
+	Efectos.hongo(mapa, pos)
+	var celdas: Array = reglas.area_nuclear(centro).keys()
+	celdas.shuffle()
+	for i in mini(14, celdas.size()):
+		get_tree().create_timer(0.05 * i).timeout.connect(
+			Efectos.explosion.bind(mapa, mapa.celda_a_pos(celdas[i]), 1.2))
+	await get_tree().create_timer(1.3).timeout
 
 
 ## Reparación: un corazón sube desde la unidad entre brillitos verdes.
@@ -803,10 +871,10 @@ static func sonido_de_golpe(destruida: bool, critico: bool) -> String:
 	return "critico" if critico else "golpe"
 
 
-## Pequeño temblor de pantalla (golpes críticos y destrucciones).
-func sacudir_camara(fuerza: float) -> void:
+## Pequeño temblor de pantalla (golpes críticos, destrucciones, bomba nuclear).
+func sacudir_camara(fuerza: float, veces := 5) -> void:
 	var tw := create_tween()
-	for i in 5:
+	for i in veces:
 		tw.tween_property(camara, "offset", Vector2(randf_range(-fuerza, fuerza), randf_range(-fuerza, fuerza)), 0.03)
 	tw.tween_property(camara, "offset", Vector2.ZERO, 0.04)
 
@@ -985,6 +1053,13 @@ func _usar_habilidad(nombre: String) -> void:
 				estado = Estado.MOVIENDO
 				await animar_marcha(equipo_actual)
 				estado = Estado.LIBRE
+		"nuclear":
+			var visibles: Array[Vector2i] = []
+			for y in mapa.alto:
+				for x in mapa.ancho:
+					if mapa.se_ve(Vector2i(x, y)):
+						visibles.append(Vector2i(x, y))
+			_apuntar(visibles, "Toca el centro de la explosión", _lanzar_nuclear, true)
 		"radar":
 			_cerrar_menu()
 			if reglas.usar_radar(equipo_actual):
@@ -1000,6 +1075,15 @@ func _bombardear(centro: Vector2i) -> void:
 	estado = Estado.MOVIENDO
 	await animar_bombardeo(centro, equipo_actual)
 	reglas.usar_bombardeo(equipo_actual, centro)
+	estado = Estado.LIBRE
+
+
+func _lanzar_nuclear(centro: Vector2i) -> void:
+	if not reglas.puede_pagar_habilidad("nuclear", equipo_actual):
+		return
+	estado = Estado.MOVIENDO
+	await animar_nuclear(centro)
+	reglas.usar_nuclear(equipo_actual, centro)
 	estado = Estado.LIBRE
 
 

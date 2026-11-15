@@ -10,7 +10,7 @@ extends Node
 ## Se emite cuando la IA decide atacar (ya se movió a la casilla desde donde ataca).
 signal ataque_elegido(atacante: Unidad, objetivo: Unidad)
 
-const PAUSA := 0.25  # segundos entre unidad y unidad, para que el jugador alcance a ver
+const PAUSA := 0.15  # segundos entre unidad y unidad, para que el jugador alcance a ver
 const VIDA_PARA_RETIRARSE := 4
 
 @export var equipo := "rojo"
@@ -261,6 +261,27 @@ func _usar_habilidades() -> void:
 		if main.has_method("animar_bombardeo"):
 			await main.animar_bombardeo(mejor_centro, equipo)
 		reglas.usar_bombardeo(equipo, mejor_centro)
+	# Bomba nuclear si tiene muchísimo dinero y 3 o más unidades del jugador juntas (sin propias cerca).
+	if reglas.creditos[equipo] >= reglas.precio_habilidad("nuclear", equipo) + 2000:
+		var mejor_nuke := Vector2i(-1, -1)
+		var mejor_valor := 2
+		for e in mapa.unidades_de(_equipo_rival()):
+			var enemigos := 0
+			var propias := 0
+			for c in reglas.area_nuclear(e.celda):
+				var u := mapa.unidad_en(c)
+				if u != null:
+					if u.equipo == equipo:
+						propias += 1
+					else:
+						enemigos += 1
+			if propias == 0 and enemigos > mejor_valor:
+				mejor_valor = enemigos
+				mejor_nuke = e.celda
+		if mejor_nuke.x >= 0:
+			if main.has_method("animar_nuclear"):
+				await main.animar_nuclear(mejor_nuke)
+			reglas.usar_nuclear(equipo, mejor_nuke)
 	# Reparación a su unidad más valiosa si está muy herida.
 	for u in mapa.unidades_de(equipo):
 		if u.vida <= 4 and u.datos()["precio"] >= 2500 and reglas.creditos[equipo] >= reglas.precio_habilidad("reparacion", equipo) + 1000:

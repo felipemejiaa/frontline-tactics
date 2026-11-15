@@ -15,9 +15,6 @@ signal partida_terminada(ganador: String)
 # ---- Valores que puedes ajustar ----
 const EQUIPOS := ["azul", "rojo"]
 const CREDITOS_INICIALES := 2000
-const DANO_BASE := 0.5          # fracción de la vida máxima del objetivo
-const MULT_VENTAJA := 1.5       # piedra-papel-tijera a favor
-const MULT_DESVENTAJA := 0.5    # en contra
 const DEFENSA_POR_NIVEL := 0.1  # cada nivel de defensa del terreno quita 10 %
 const BONO_FLANQUEO := 0.15     # +15 % por cada aliado pegado al objetivo
 const BONO_RANGO := 0.1         # +10 % por cada estrella de veteranía
@@ -39,6 +36,10 @@ var estadisticas := {}
 var usos_habilidad := {}
 ## Equipos con el radar activo este turno.
 var radar_activo := {}
+## Truco de la expo: el jugador (azul) tiene dinero y población sin límite.
+## Es "static" para que siga activo aunque se empiece otra partida.
+static var dinero_infinito := false
+const DINERO_TRUCO := 999999
 var _captura := {}    # celda -> puntos acumulados
 var _cuarteles := {}  # equipo -> celda de su cuartel general
 
@@ -57,6 +58,13 @@ func iniciar(mapa_ref: GameMap) -> void:
 			"gastado": 0, "habilidades": 0}
 		usos_habilidad[e] = {}
 		creditos_cambiados.emit(e, creditos[e])
+	aplicar_dinero_infinito()
+
+
+func aplicar_dinero_infinito() -> void:
+	if dinero_infinito and creditos.has("azul"):
+		creditos["azul"] = DINERO_TRUCO
+		creditos_cambiados.emit("azul", creditos["azul"])
 
 
 func otro_equipo(equipo: String) -> String:
@@ -87,11 +95,15 @@ func celda_base(equipo: String) -> Vector2i:
 
 func _sumar_creditos(equipo: String, cantidad: int) -> void:
 	creditos[equipo] += cantidad
+	if dinero_infinito and equipo == "azul":
+		creditos[equipo] = DINERO_TRUCO
 	creditos_cambiados.emit(equipo, creditos[equipo])
 
 
 # ---------------- POBLACIÓN Y COMPRA ----------------
 func limite_poblacion(equipo: String) -> int:
+	if dinero_infinito and equipo == "azul":
+		return 99
 	return Datos.POBLACION_BASE + mapa.edificios_de(equipo).size()
 
 
@@ -162,8 +174,8 @@ func puede_atacar_desde(atacante: Unidad, desde: Vector2i, objetivo: Unidad) -> 
 	if atacante.equipo == objetivo.equipo:
 		return false
 	var datos := atacante.datos()
-	if objetivo.es_aerea() and not datos["ataca_aire"]:
-		return false
+	if Datos.dano_base(atacante.tipo, objetivo.tipo) <= 0:
+		return false  # según la tabla de daño, no lo puede atacar (ej. artillería contra helicóptero)
 	var d: int = mapa.distancia(desde, objetivo.celda)
 	return d >= datos["rango_min"] and d <= datos["rango_max"]
 
@@ -189,17 +201,14 @@ func _dano(atacante: Unidad, vida_atacante: int, celda_atacante: Vector2i,
 		objetivo: Unidad, celda_objetivo: Vector2i) -> int:
 	var vida_max_obj: float = objetivo.datos()["vida_max"]
 	var fuerza: float = float(vida_atacante) / float(atacante.datos()["vida_max"])
-	var mult := 1.0
-	if Datos.le_gana(atacante.tipo, objetivo.tipo):
-		mult = MULT_VENTAJA
-	elif Datos.le_gana(objetivo.tipo, atacante.tipo):
-		mult = MULT_DESVENTAJA
+	# Daño base de la tabla de Advanced Wars (ver Datos.DANO_BASE).
+	var mult := Datos.dano_base(atacante.tipo, objetivo.tipo) / 100.0
 	mult *= 1.0 + BONO_RANGO * atacante.rango
 	mult *= 1.0 + BONO_FLANQUEO * aliados_flanqueando(atacante.equipo, celda_objetivo, celda_atacante, atacante)
 	var defensa := 0.0
 	if not objetivo.es_aerea():
 		defensa = Datos.TERRENOS[mapa.terreno_en(celda_objetivo)]["defensa"] * DEFENSA_POR_NIVEL
-	var dano: float = vida_max_obj * DANO_BASE * mult * fuerza * (1.0 - defensa)
+	var dano: float = vida_max_obj * mult * fuerza * (1.0 - defensa)
 	return maxi(1, int(round(dano)))
 
 
@@ -363,6 +372,45 @@ func usar_bombardeo(equipo: String, centro: Vector2i) -> bool:
 				if dano > 0:
 					u.vida -= dano
 					unidad_danada.emit(u, dano)
+	return true
+
+
+## Casillas afectadas por una bomba nuclear: celda -> daño.
+func area_nuclear(centro: Vector2i) -> Dictionary:
+	var area := {}
+	var r := int(ceil(Datos.RADIO_NUCLEAR))
+	for dy in range(-r, r + 1):
+		for dx in range(-r, r + 1):
+			var c := centro + Vector2i(dx, dy)
+			var dist := Vector2(dx, dy).length()
+			if not mapa.en_mapa(c) or dist > Datos.RADIO_NUCLEAR:
+				continue
+			for escalon in Datos.DANO_NUCLEAR:
+				if dist <= escalon[0]:
+					area[c] = escalon[1]
+					break
+	return area
+
+
+## Bomba nuclear: le pega a TODAS las unidades del área, también a las propias. Sí destruye.
+func usar_nuclear(equipo: String, centro: Vector2i) -> bool:
+	if not puede_pagar_habilidad("nuclear", equipo) or not mapa.en_mapa(centro):
+		return false
+	_pagar_habilidad("nuclear", equipo)
+	var area := area_nuclear(centro)
+	for c in area:
+		var u := mapa.unidad_en(c)
+		if u == null:
+			continue
+		var dano := mini(area[c], u.vida)
+		u.vida -= dano
+		unidad_danada.emit(u, dano)
+		if u.vida <= 0:
+			estadisticas[u.equipo]["perdidas"] += 1
+			if u.equipo != equipo:
+				estadisticas[equipo]["destruidas"] += 1
+			_quitar(u)
+	revisar_victoria()
 	return true
 
 

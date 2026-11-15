@@ -36,10 +36,10 @@ El número es cuántos puntos de movimiento gasta entrar a esa casilla.
 ## Estrategia
 
 - **Nueva partida:** se elige dificultad (Fácil, Normal, Difícil) y niebla de guerra (Sí/No).
-- **Mapa de 36×20:** se arrastra con el dedo para moverlo.
+- **Mapa de 30×18:** se arrastra con el dedo para moverlo.
 - **Unidades:** Infantería, Tanque, Artillería, Helicóptero (vuela), Antiaérea y Torreta (solo junto a tu cuartel, no se mueve).
-- **Ventajas:** ver `Datos.VENTAJAS`.
-- **Población:** máximo 5 unidades + 1 por cada edificio tuyo.
+- **Quién le gana a quién:** tabla de daño de Advanced Wars en `Datos.DANO_BASE`.
+- **Población:** máximo 3 unidades + 1 por cada edificio tuyo.
 - **Curación:** +2 de vida al empezar el turno en un edificio propio.
 - **Veteranía:** cada unidad destruida da una estrella (+10 % de daño, máximo 3).
 - **Flanqueo:** +15 % de daño por cada aliado pegado al enemigo.
@@ -47,8 +47,8 @@ El número es cuántos puntos de movimiento gasta entrar a esa casilla.
 - **Enemigos:** al tocarlos se ve en naranja a dónde se mueven y en rojo hasta dónde atacan.
 - **Botones:** mantenerlos presionados muestra qué hacen. "Terminar turno" brilla cuando ya no te queda nada por hacer.
 - **Críticos:** 10 % (+5 % por estrella) de hacer x1.5 de daño. Tres sonidos: golpe, crítico y unidad destruida.
-- **Peligro:** muestra todas las casillas que el enemigo puede atacar.
-- **Habilidades** (Tienda), cada una con su animación: Reparación (corazón), Bombardeo (un avión suelta bombas), Marcha forzada (las unidades saltan) y Radar (ondas, solo con niebla). Cada uso sube el precio.
+- **Habilidades** (Tienda), cada una con su animación: Reparación (corazón), Bombardeo (un avión suelta bombas), Marcha forzada (las unidades saltan), Radar (ondas, solo con niebla) y **Bomba nuclear** ($15000, radio 3, destruye en el centro y también le pega a lo tuyo). Cada uso sube el precio.
+- **Fichas:** tocar una unidad muestra una ficha corta; mantenerla presionada muestra la completa.
 - **Niebla:** negro = sin explorar, gris = explorado sin vista. Pasar por donde hay un enemigo escondido es una emboscada.
 - **Victoria:** capturar el cuartel enemigo, o dejarlo sin unidades y sin forma de comprar.
 

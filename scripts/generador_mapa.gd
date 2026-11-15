@@ -10,8 +10,8 @@ extends RefCounted
 ## Al final revisa que haya camino entre las bases, los cuarteles y todas las ciudades;
 ## si no lo hay, vuelve a intentar.
 
-const ANCHO := 36   # debe ser par para que el espejo quede exacto
-const ALTO := 20
+const ANCHO := 30   # debe ser par para que el espejo quede exacto
+const ALTO := 18
 const MITAD := ANCHO / 2
 ## Zonas de la mitad izquierda (columnas x filas). La primera columna de zonas empieza en X_ZONAS.
 const ZONAS_X := 3
@@ -19,7 +19,7 @@ const ZONAS_Y := 4
 const X_ZONAS := 3
 
 ## Unidades con las que arranca cada bando (se ubican cerca de su base).
-const EJERCITO_INICIAL := ["infanteria", "infanteria", "tanque", "artilleria"]
+const EJERCITO_INICIAL := ["infanteria", "tanque", "artilleria"]
 
 var rng := RandomNumberGenerator.new()
 var g: Array = []  # g[y][x] = letra (ver leyenda en game_map.gd)

@@ -176,4 +176,20 @@ guardar("critico", critico, 0.7)
 grande = pasa_bajos(ruido(1.1), 0.18) * envolvente(int(SR * 1.1), 0.002, 0.3)
 grande += 0.8 * barrido(140, 20, 1.1) * envolvente(int(SR * 1.1), 0.002, 0.35)
 guardar("destruccion", grande, 0.8)
+
+# --- sirena de alarma (antes de la bomba nuclear): sube y baja dos veces ---
+f_sirena = np.concatenate([np.linspace(500, 1100, int(SR * 0.45)), np.linspace(1100, 500, int(SR * 0.45))] * 2)
+sirena = np.where((np.cumsum(f_sirena) / SR) % 1 < 0.5, 1.0, -1.0) * 0.6
+borde = int(SR * 0.05)
+sirena[:borde] *= np.linspace(0, 1, borde)
+sirena[-borde:] *= np.linspace(1, 0, borde)
+guardar("sirena", sirena, 0.45)
+
+# --- bomba nuclear: estallido, retumbo grave y largo ---
+dur = 2.8
+boom = pasa_bajos(ruido(dur), 0.08) * envolvente(int(SR * dur), 0.003, 0.9)
+boom += 1.2 * barrido(90, 18, dur) * envolvente(int(SR * dur), 0.003, 1.0)
+golpe_inicial = pasa_bajos(ruido(0.25), 0.6) * envolvente(int(SR * 0.25), 0.001, 0.05)
+boom[:len(golpe_inicial)] += 1.5 * golpe_inicial
+guardar("nuclear", boom, 0.9)
 print("listo")

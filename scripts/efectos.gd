@@ -33,6 +33,25 @@ static func explosion(padre: Node, pos: Vector2, tamano := 1.0) -> void:
 	_lanzar(padre, humo)
 
 
+## Hongo de humo que sube despacio (bomba nuclear).
+static func hongo(padre: Node, pos: Vector2, tamano := 4.0) -> void:
+	var humo := _particulas(60, 2.2, tamano, Color(0.5, 0.45, 0.42))
+	humo.position = pos
+	humo.direction = Vector2.UP
+	humo.spread = 25.0
+	humo.initial_velocity_min = 20.0
+	humo.initial_velocity_max = 45.0
+	humo.gravity = Vector2(0, -15)
+	humo.explosiveness = 0.7
+	_lanzar(padre, humo)
+	var fuego := _particulas(50, 1.0, tamano, Color(1, 0.6, 0.15))
+	fuego.position = pos
+	fuego.initial_velocity_min = 30.0
+	fuego.initial_velocity_max = 90.0
+	fuego.gravity = Vector2(0, -30)
+	_lanzar(padre, fuego)
+
+
 ## Onda que crece desde un punto (radar).
 static func onda(padre: Node, pos: Vector2, radio: float, color: Color, duracion := 1.0) -> void:
 	var o := Onda.new()

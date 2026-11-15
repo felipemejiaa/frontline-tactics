@@ -106,10 +106,10 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 9
 text = "• Toca una unidad azul para ver a dónde se mueve. Arrastra el dedo para mover el mapa.
 • Enemigos con borde rojo: tócalos para ver el daño estimado, y otra vez para atacar.
-• Ventajas: Infantería > Artillería > Tanque > Infantería. Helicóptero > Tanque y Artillería. Antiaérea > Helicóptero. Torreta (junto a tu cuartel) > Infantería y Tanque.
-• Captura ciudades con infantería (2 turnos): dan $500 por turno, curan +2 y suben tu población (5 + 1 por edificio).
+• Como en Advanced Wars: el tanque aplasta infantería; la artillería castiga todo lo de tierra pero no le dispara al aire; la antiaérea destroza helicópteros e infantería; el helicóptero caza tanques y artillería. Mantén presionada una unidad para ver contra quién es fuerte o débil.
+• Captura ciudades con infantería (2 turnos): dan $500 por turno, curan +2 y suben tu población (3 + 1 por edificio).
 • Destruir enemigos da estrellas de veteranía (+10% de daño). Rodear al enemigo da +15% por aliado.
-• Botón Peligro: muestra dónde te pueden atacar. Tienda: unidades y habilidades.
+• Toca un enemigo para ver a dónde se mueve (naranja) y hasta dónde ataca (rojo). Tienda: unidades y habilidades.
 • Ganas si capturas el cuartel enemigo o lo dejas sin unidades y sin forma de comprar."
 autowrap_mode = 3
 

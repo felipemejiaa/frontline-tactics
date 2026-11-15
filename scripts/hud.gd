@@ -7,14 +7,13 @@ extends CanvasLayer
 signal terminar_turno_pedido
 signal nuevo_mapa_pedido
 signal tienda_pedida
-signal peligro_alternado
+signal truco_dinero  # 5 toques seguidos en el texto del dinero
 
 const ESCENA_MENU := "res://scenes/menu_principal.tscn"
 
 
 ## Explicación de cada botón de arriba (se ve manteniéndolo presionado).
 const AYUDAS := {
-	"BotonPeligro": "Marca en rojo dónde te puede atacar el enemigo en su próximo turno",
 	"BotonTienda": "Comprar unidades y habilidades",
 	"BotonMenu": "Pausa y opciones",
 	"BotonTerminar": "Pasar el turno a la máquina",
@@ -28,7 +27,21 @@ var _ayuda_mostrada := false
 var _tween_terminar: Tween
 
 
+var _toques_truco: Array[float] = []
+
+
 func _ready() -> void:
+	# Truco secreto: 5 toques rápidos en el texto de arriba a la izquierda.
+	var etiqueta: Label = %EtiquetaTurno
+	etiqueta.mouse_filter = Control.MOUSE_FILTER_STOP
+	etiqueta.gui_input.connect(func(e: InputEvent):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			var ahora := Time.get_ticks_msec() / 1000.0
+			_toques_truco.append(ahora)
+			_toques_truco = _toques_truco.filter(func(t): return ahora - t < 2.5)
+			if _toques_truco.size() >= 5:
+				_toques_truco.clear()
+				truco_dinero.emit())
 	# Mantener presionado un botón muestra su explicación (y no lo activa).
 	for nombre in AYUDAS:
 		var b: Button = get_node("%" + nombre)
@@ -41,7 +54,6 @@ func _ready() -> void:
 	%BotonTerminar.pressed.connect(func(): if not _ayuda_mostrada: terminar_turno_pedido.emit())
 	%BotonMenu.pressed.connect(func(): if not _ayuda_mostrada: abrir_pausa())
 	%BotonTienda.pressed.connect(func(): if not _ayuda_mostrada: tienda_pedida.emit())
-	%BotonPeligro.pressed.connect(func(): if not _ayuda_mostrada: peligro_alternado.emit())
 	%BotonCinematicas.pressed.connect(_alternar_cinematicas)
 	%BotonSonido.pressed.connect(_alternar_sonido)
 	_actualizar_opciones()
@@ -65,16 +77,27 @@ func bloquear_botones(bloquear: bool) -> void:
 	%BotonTerminar.disabled = bloquear
 	%BotonMenu.disabled = bloquear
 	%BotonTienda.disabled = bloquear
-	%BotonPeligro.disabled = bloquear
 
 
-## Panel con la información de la unidad seleccionada, del lado contrario a ella.
+## Fichita con la información de la unidad, en la esquina de abajo contraria a ella.
 func mostrar_info(texto: String, a_la_derecha: bool) -> void:
+	var panel: PanelContainer = %PanelInfo
+	if not panel.has_theme_stylebox_override("panel"):
+		var estilo: StyleBoxFlat = panel.get_theme_stylebox("panel").duplicate()
+		estilo.content_margin_left = 5
+		estilo.content_margin_right = 5
+		estilo.content_margin_top = 3
+		estilo.content_margin_bottom = 3
+		estilo.border_width_left = 1
+		estilo.border_width_top = 1
+		estilo.border_width_right = 1
+		estilo.border_width_bottom = 1
+		panel.add_theme_stylebox_override("panel", estilo)
 	%TextoInfo.text = texto
-	var panel: Control = %PanelInfo
+	panel.size = Vector2.ZERO
 	panel.reset_size()
 	var ancho_pantalla := panel.get_viewport_rect().size.x
-	panel.position = Vector2(ancho_pantalla - panel.size.x - 6 if a_la_derecha else 6.0, 270 - panel.size.y - 6)
+	panel.position = Vector2(ancho_pantalla - panel.size.x - 4 if a_la_derecha else 4.0, 270 - panel.size.y - 4)
 	panel.show()
 
 
@@ -223,9 +246,6 @@ func mostrar_estado(texto: String) -> void:
 	%EtiquetaTurno.text = texto
 
 
-## El botón Peligro se ve "presionado" mientras la zona está activa.
-func marcar_peligro(activo: bool) -> void:
-	%BotonPeligro.modulate = Color(1, 0.55, 0.5) if activo else Color.WHITE
 
 
 func mostrar_fin(ganador: String, estadisticas := "") -> void:

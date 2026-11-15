@@ -7,7 +7,7 @@ extends Node
 
 const CARPETA := "res://assets/sonidos/"
 const EFECTOS := ["clic", "disparo", "canon", "explosion", "golpe", "paso", "seleccion",
-	"compra", "captura", "turno", "victoria", "derrota", "critico", "destruccion"]
+	"compra", "captura", "turno", "victoria", "derrota", "critico", "destruccion", "sirena", "nuclear"]
 const CANALES := 8  # cuántos sonidos pueden sonar a la vez
 
 ## Se cambia desde el menú de pausa.

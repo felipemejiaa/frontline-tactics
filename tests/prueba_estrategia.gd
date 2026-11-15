@@ -44,7 +44,7 @@ func _initialize() -> void:
 	revisar(afuera.vida == 5, "fuera de un edificio no se cura")
 
 	print("Población")
-	revisar(reglas.limite_poblacion("azul") == 5 + 3, "límite = 5 + 3 edificios = 8")
+	revisar(reglas.limite_poblacion("azul") == 3 + 3, "límite = 3 + 3 edificios = 6")
 	reglas.creditos["azul"] = 99999
 	var compradas := 0
 	for i in 10:
@@ -52,7 +52,7 @@ func _initialize() -> void:
 		if reglas.comprar("infanteria", "azul"):
 			compradas += 1
 			mapa.mover_registro(mapa.unidad_en(base), Vector2i(1 + i % 7, 1) if i < 7 else Vector2i(1, 0))
-	revisar(reglas.poblacion("azul") == 8, "no se puede pasar del límite (%d unidades)" % reglas.poblacion("azul"))
+	revisar(reglas.poblacion("azul") == 6, "no se puede pasar del límite (%d unidades)" % reglas.poblacion("azul"))
 	revisar(reglas.motivo_no_compra("infanteria", "azul") == "Población llena", "la tienda dice 'Población llena'")
 
 	print("Veteranía y flanqueo")
@@ -91,7 +91,7 @@ func _initialize() -> void:
 	var a_heli: int = reglas.estimar(aa, heli, aa.celda)["dano"]
 	var tanque_heli: int = reglas.estimar(tanque_r, heli, tanque_r.celda)["dano"]
 	revisar(a_heli > tanque_heli * 2, "la antiaérea destroza al helicóptero (%d vs %d del tanque)" % [a_heli, tanque_heli])
-	revisar(reglas.estimar(heli, tanque_r, heli.celda)["dano"] >= 7, "el helicóptero le gana al tanque")
+	revisar(reglas.estimar(heli, tanque_r, heli.celda)["dano"] >= 5 and reglas.estimar(tanque_r, heli, tanque_r.celda)["dano"] <= 1, "el helicóptero le hace mucho al tanque y el tanque casi nada al helicóptero")
 
 	print("Torreta")
 	await preparar(["....H....h", "F........f", ".........."])
@@ -130,16 +130,12 @@ func _initialize() -> void:
 	mia.reiniciar_turno()
 	revisar(mia.movimiento() == mov_antes, "y se acaba al siguiente turno")
 
-	print("Zona de peligro")
+	print("Cálculo de peligro (aviso en la ficha)")
 	await preparar(["H..........h", "F..........f", "............"])
 	mapa.crear_unidad("tanque", "rojo", Vector2i(8, 1))
 	mapa.crear_unidad("infanteria", "azul", Vector2i(0, 2))
 	var zona: Dictionary = main.calcular_peligro("azul")
 	revisar(zona.has(Vector2i(3, 1)) and not zona.has(Vector2i(1, 1)), "marca hasta donde llega el tanque (mov 5 + 1)")
-	main._alternar_peligro()
-	await create_timer(0.1).timeout
-	revisar(not mapa.zona_peligro.is_empty(), "el botón Peligro la muestra en el mapa")
-	main._alternar_peligro()
 
 	print("Victoria por cuartel")
 	await preparar(["H.......h", "F.......f"])
@@ -188,7 +184,7 @@ func _initialize() -> void:
 	await _tocar(main.get_canvas_transform() * mapa.celda_a_pos(una.celda))
 	revisar(main.seleccionada == una, "un toque corto sigue seleccionando")
 	main.deseleccionar()
-	revisar(mapa.ancho == 36 and mapa.alto == 20, "el mapa es de 36x20")
+	revisar(mapa.ancho == 30 and mapa.alto == 18, "el mapa es de 30x18")
 
 	print("Ataque en dos toques y zona de ataque enemiga")
 	await preparar(["H..........h", "F..........f", "............", "............"])
@@ -207,11 +203,15 @@ func _initialize() -> void:
 	main.tocar_celda(r2.celda)
 	revisar(not main.resaltado.zona_ataque.is_empty() and Vector2i(7, 3) in main.resaltado.zona_ataque,
 		"tocar un enemigo muestra su zona de ataque (artillería: 2-3 casillas)")
-	revisar("Naranja" in main.get_node("%TextoInfo").text, "y explica los colores")
+	revisar(main.get_node("%TextoInfo").text.count("\n") <= 1, "la ficha al tocar es corta (2 líneas)")
+	main._toque_largo(main.get_canvas_transform() * mapa.celda_a_pos(r2.celda))
+	revisar("Naranja" in main.get_node("%TextoInfo").text and "Débil contra" in main.get_node("%TextoInfo").text,
+		"manteniendo presionado se ve la ficha completa con los colores")
 	main.deseleccionar()
-	revisar(main.hud.get_node("%BotonPeligro").tooltip_text != "", "los botones tienen su explicación")
-	main.hud._mostrar_ayuda(main.hud.get_node("%BotonPeligro"))
-	revisar(main.hud._ayuda != null and "enemigo" in main.hud._ayuda.get_child(0).text, "mantener presionado un botón muestra un globito con la ayuda")
+	revisar(main.hud.get_node("%BotonTienda").tooltip_text != "", "los botones tienen su explicación")
+	revisar(main.hud.get_node_or_null("%BotonPeligro") == null, "ya no está el botón Peligro")
+	main.hud._mostrar_ayuda(main.hud.get_node("%BotonTienda"))
+	revisar(main.hud._ayuda != null and "unidades" in main.hud._ayuda.get_child(0).text, "mantener presionado un botón muestra un globito con la ayuda")
 	for u in mapa.unidades_de("azul"):
 		reglas.marcar_lista(u)
 	await create_timer(0.4).timeout
@@ -250,6 +250,64 @@ func _initialize() -> void:
 	main._usar_habilidad("marcha")
 	await create_timer(0.8).timeout
 	revisar(propia.bono_mov == 2 and main.estado == main.Estado.LIBRE, "marcha forzada con animación")
+
+	print("Quién le gana a quién (Advanced Wars)")
+	revisar(Datos.le_gana("tanque", "infanteria") and not Datos.le_gana("infanteria", "tanque"), "el tanque aplasta a la infantería")
+	revisar(Datos.dano_base("artilleria", "helicoptero") == 0, "la artillería no le dispara al aire")
+	revisar(Datos.le_gana("antiaerea", "helicoptero") and Datos.le_gana("antiaerea", "infanteria"), "la antiaérea destroza helicópteros e infantería")
+	revisar(Datos.le_gana("helicoptero", "artilleria") and not Datos.le_gana("tanque", "helicoptero"), "el helicóptero caza artillería y el tanque casi no le hace nada")
+	revisar(Datos.le_gana("artilleria", "tanque"), "la artillería castiga a los tanques")
+
+	print("Bomba nuclear")
+	await preparar(["H..........h", "F..........f", "............", "............", "............", "............"])
+	main.equipo_actual = "azul"
+	reglas.creditos["azul"] = 20000
+	var centro_n := Vector2i(6, 3)
+	var n1 := mapa.crear_unidad("tanque", "rojo", centro_n)
+	var n2 := mapa.crear_unidad("tanque", "rojo", centro_n + Vector2i(2, 0))
+	var n3 := mapa.crear_unidad("tanque", "rojo", centro_n + Vector2i(3, 0))
+	var mia_n := mapa.crear_unidad("tanque", "azul", centro_n + Vector2i(-3, 0))
+	var lejos_n := mapa.crear_unidad("infanteria", "rojo", Vector2i(11, 5))
+	revisar(reglas.area_nuclear(centro_n).size() > 25, "el área es enorme (%d casillas)" % reglas.area_nuclear(centro_n).size())
+	var vio_destello := [false]
+	var listo_n := [false]
+	var lanzar := func():
+		await main._lanzar_nuclear(centro_n)
+		listo_n[0] = true
+	lanzar.call()
+	var vida_en_destello := -1
+	while not listo_n[0]:
+		for h in main.get_children():
+			if h is CanvasLayer and h.layer == 9:
+				vio_destello[0] = true
+				if vida_en_destello < 0:
+					vida_en_destello = n2.vida if is_instance_valid(n2) else 0
+		await process_frame
+	revisar(vio_destello[0], "hay destello blanco")
+	revisar(vida_en_destello == 10, "el daño llega después de la animación")
+	await process_frame
+	revisar(not is_instance_valid(n1), "en el centro destruye")
+	revisar(is_instance_valid(n2) and n2.vida == 2, "a 2 casillas hace 8 de daño")
+	revisar(is_instance_valid(n3) and n3.vida == 5, "en el borde hace 5 de daño")
+	revisar(is_instance_valid(mia_n) and mia_n.vida == 5, "también le pega a tus unidades")
+	revisar(is_instance_valid(lejos_n) and lejos_n.vida == 10, "fuera del área no pasa nada")
+	revisar(reglas.creditos["azul"] == 5000, "cuesta $15000")
+
+	print("Truco secreto: dinero infinito")
+	var etiqueta: Label = main.hud.get_node("%EtiquetaTurno")
+	var centro_et := etiqueta.get_global_rect().get_center()
+	for i in 5:
+		await _tocar(centro_et)
+	revisar(Reglas.dinero_infinito and reglas.creditos["azul"] == Reglas.DINERO_TRUCO, "5 toques en el dinero activan el truco")
+	reglas.comprar("infanteria", "azul")
+	revisar(reglas.creditos["azul"] == Reglas.DINERO_TRUCO, "comprar no gasta")
+	revisar(reglas.limite_poblacion("azul") >= 99, "y no hay límite de población")
+	for i in 5:
+		await _tocar(centro_et)
+	revisar(not Reglas.dinero_infinito, "otros 5 toques lo desactivan")
+	await _tocar(centro_et)
+	await _tocar(centro_et)
+	revisar(not Reglas.dinero_infinito, "pocos toques no hacen nada")
 
 	print("Partidas completas en cada dificultad (con niebla)")
 	Cinematica.activadas = false

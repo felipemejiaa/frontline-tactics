@@ -72,7 +72,8 @@ func _initialize() -> void:
 	revisar(main.resaltado.etiquetas.has(vecino.celda), "encima del enemigo se ve el daño que le harías")
 	var vida_antes := vecino.vida
 	main._toque_largo(main.get_canvas_transform() * mapa.celda_a_pos(vecino.celda))
-	revisar(vecino.vida == vida_antes and "Harás" in main.get_node("%TextoInfo").text,
+	var t_prev: String = main.get_node("%TextoInfo").text
+	revisar(vecino.vida == vida_antes and ("le quedan" in t_prev or "destruyes" in t_prev),
 		"mantener presionado el enemigo muestra la vista previa sin atacar")
 	main.tocar_celda(vecino.celda)
 	await create_timer(0.3).timeout

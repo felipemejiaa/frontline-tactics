@@ -43,7 +43,7 @@ func _initialize() -> void:
 
 		# Unidades: 3 por bando, en terreno válido y sin repetir casilla
 		var unidades: Array = res["unidades"]
-		revisar(unidades.size() == 8, "semilla %d: 8 unidades" % semilla)
+		revisar(unidades.size() == 6, "semilla %d: 6 unidades" % semilla)
 		var usadas := {}
 		for u in unidades:
 			var costo: int = Datos.UNIDADES[u["tipo"]]["costo_terreno"][mapa.terreno_en(u["celda"])]
