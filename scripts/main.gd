@@ -5,12 +5,13 @@ extends Node2D
 ## Se emite cuando una unidad termina de moverse.
 signal unidad_movida(unidad: Unidad)
 
-enum Estado { LIBRE, SELECCIONADA, MOVIENDO, MENU, OBJETIVO, APUNTAR, PREVISION }
+enum Estado { LIBRE, SELECCIONADA, MOVIENDO, MENU, OBJETIVO, APUNTAR }
 
 const POS_MENU := Vector2(8, 40)   # dónde aparece el menú (el juego se dibuja a 480x270)
 const FUENTE_MENU := 10
 const ALTO_BARRA := 30.0           # franja del HUD arriba
 const UMBRAL_ARRASTRE := 6.0       # píxeles que hay que mover el dedo para que sea arrastre y no toque
+const TIEMPO_PRESION_LARGA := 0.45 # segundos manteniendo el dedo para ver detalles
 
 @onready var mapa: GameMap = $GameMap
 @onready var resaltado: Resaltado = $GameMap/Resaltado
@@ -36,10 +37,8 @@ var unidad_menu: Unidad = null
 var objetivos_actuales: Array[Unidad] = []
 ## Enemigos que la unidad seleccionada puede atacar este turno: celda del enemigo -> casilla desde donde atacar.
 var ataques_posibles := {}
-## Tocar un enemigo atacable muestra la vista previa del daño y el botón "Atacar".
+## Enemigo del que se está mostrando la vista previa (mantener presionado).
 var objetivo_previsto := Vector2i(-1, -1)
-## Ataque en vista previa: {atacante, objetivo, desde, origen ("seleccion" o "menu")}
-var _prevision := {}
 ## true mientras una unidad se mueve para atacar (así no se abre el menú de acciones).
 var atacando_directo := false
 ## Mientras se resuelve un ataque se anotan los golpes, para mostrarlos en la cinemática.
@@ -58,6 +57,8 @@ var camara := Camera2D.new()
 var _presionado := false
 var _arrastrando := false
 var _inicio_toque := Vector2.ZERO
+var _tiempo_presion := 0.0
+var _presion_larga_hecha := false
 
 
 func _ready() -> void:
@@ -85,6 +86,13 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# Mantener presionado (sin arrastrar) = ver detalles, sin actuar.
+	if _presionado and not _arrastrando and not _presion_larga_hecha:
+		_tiempo_presion += delta
+		if _tiempo_presion >= TIEMPO_PRESION_LARGA:
+			_presion_larga_hecha = true
+			_toque_largo(_inicio_toque)
+	_revisar_fin_de_turno(delta)
 	if mapa.niebla_activa:
 		mapa.actualizar_vision("azul", reglas.radar_activo.has("azul"))
 	if mostrar_peligro:
@@ -194,9 +202,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.pressed:
 			_presionado = true
 			_arrastrando = false
+			_presion_larga_hecha = false
+			_tiempo_presion = 0.0
 			_inicio_toque = event.position
 		else:
-			if _presionado and not _arrastrando:
+			if _presionado and not _arrastrando and not _presion_larga_hecha:
 				_toque_en_pantalla(event.position)
 			_presionado = false
 	elif event is InputEventMouseMotion and _presionado:
@@ -213,8 +223,24 @@ func _toque_en_pantalla(pos: Vector2) -> void:
 		tocar_celda(celda)
 	elif estado == Estado.SELECCIONADA:
 		deseleccionar()
-	elif estado == Estado.PREVISION:
-		_cancelar_prevision()
+
+
+## Mantener presionado: vista previa del daño sobre un enemigo atacable, o la ficha de una unidad.
+func _toque_largo(pos: Vector2) -> void:
+	if turno_ia or juego_terminado:
+		return
+	var celda := mapa.pos_a_celda(mapa.to_local(get_canvas_transform().affine_inverse() * pos))
+	if not mapa.en_mapa(celda):
+		return
+	if estado == Estado.SELECCIONADA and ataques_posibles.has(celda):
+		_mostrar_prevision(seleccionada, mapa.unidad_en(celda), ataques_posibles[celda])
+	elif estado == Estado.OBJETIVO and _unidad_visible(celda) in objetivos_actuales:
+		_mostrar_prevision(unidad_menu, mapa.unidad_en(celda), unidad_menu.celda)
+	else:
+		var u := _unidad_visible(celda)
+		if u != null:
+			hud.mostrar_info(_texto_info(u), _en_pantalla(celda).x < get_viewport_rect().size.x / 2.0)
+	Sonido.reproducir("seleccion", -8.0)
 
 
 ## Unidad que el jugador puede ver en esa casilla (con niebla, las enemigas escondidas no cuentan).
@@ -238,19 +264,16 @@ func tocar_celda(celda: Vector2i) -> void:
 			if valida:
 				accion.call(celda)
 		Estado.OBJETIVO:
+			# Después de moverse: tocar un enemigo marcado lo ataca; tocar la propia unidad = esperar.
 			var o := _unidad_visible(celda)
 			if o != null and o in objetivos_actuales:
-				_mostrar_prevision(unidad_menu, o, unidad_menu.celda, "menu")
-		Estado.PREVISION:
-			# Tocar otro enemigo atacable cambia la vista previa; tocar fuera la cancela.
-			var p := _prevision
-			var otro := _unidad_visible(celda)
-			if p["origen"] == "seleccion" and ataques_posibles.has(celda):
-				_mostrar_prevision(p["atacante"], otro, ataques_posibles[celda], "seleccion")
-			elif p["origen"] == "menu" and otro != null and otro in objetivos_actuales:
-				_mostrar_prevision(p["atacante"], otro, p["atacante"].celda, "menu")
-			else:
-				_cancelar_prevision()
+				var atacante := unidad_menu
+				_cerrar_menu()
+				estado = Estado.MOVIENDO
+				await ejecutar_ataque(atacante, o)
+				estado = Estado.LIBRE
+			elif unidad_menu != null and celda == unidad_menu.celda:
+				_accion_esperar()
 		Estado.LIBRE:
 			var u := _unidad_visible(celda)
 			if u != null:
@@ -259,8 +282,8 @@ func tocar_celda(celda: Vector2i) -> void:
 				_abrir_compra()
 		Estado.SELECCIONADA:
 			if _puede_mover(seleccionada) and ataques_posibles.has(celda):
-				# Tocar un enemigo marcado en rojo: vista previa del daño + botón "Atacar".
-				_mostrar_prevision(seleccionada, mapa.unidad_en(celda), ataques_posibles[celda], "seleccion")
+				# Tocar un enemigo marcado en rojo: la unidad va y lo ataca (el daño ya se ve encima).
+				_mover_y_atacar(seleccionada, ataques_posibles[celda], mapa.unidad_en(celda))
 			elif _puede_mover(seleccionada) and celda == seleccionada.celda:
 				# Tocar otra vez la unidad: se queda quieta y abre el menú de acciones.
 				var u := seleccionada
@@ -290,10 +313,12 @@ func seleccionar(u: Unidad) -> void:
 	var ignorar := mapa.ocultos_para(u.equipo) if u.equipo == equipo_actual else {}
 	alcance = mapa.calcular_alcance(u, ignorar)
 	ataques_posibles = _calcular_ataques(u) if _puede_mover(u) else {}
-	var color := Resaltado.COLOR_MOVER if _puede_mover(u) else Resaltado.COLOR_ENEMIGO
+	var color := Resaltado.COLOR_MOVER if _puede_mover(u) else Resaltado.COLOR_MOV_ENEMIGO
 	var marcados: Array[Vector2i] = []
 	marcados.assign(ataques_posibles.keys())
 	resaltado.mostrar(alcance["destinos"], color, u.celda, marcados)
+	if u.equipo != equipo_actual:
+		resaltado.zona_ataque = _zona_ataque(u, alcance["destinos"])
 	for c in ataques_posibles:
 		var est := reglas.estimar(u, mapa.unidad_en(c), ataques_posibles[c])
 		resaltado.etiquetas[c] = "✖" if est["destruye"] else "-%d" % est["dano"]
@@ -304,9 +329,6 @@ func seleccionar(u: Unidad) -> void:
 
 
 func deseleccionar() -> void:
-	if estado == Estado.PREVISION:
-		menu.visible = false
-		_prevision = {}
 	seleccionada = null
 	alcance = {}
 	ataques_posibles = {}
@@ -314,6 +336,30 @@ func deseleccionar() -> void:
 	resaltado.limpiar()
 	hud.ocultar_info()
 	estado = Estado.LIBRE
+
+
+## Casillas que una unidad puede atacar el próximo turno y que no están en su área de movimiento.
+func _zona_ataque(u: Unidad, destinos: Array[Vector2i]) -> Array[Vector2i]:
+	var d := u.datos()
+	var origenes: Array[Vector2i] = destinos
+	if d["rango_min"] > 1 or d["movimiento"] == 0:
+		origenes = [u.celda]  # la artillería y la torreta atacan sin moverse
+	var en_movimiento := {}
+	for c in destinos:
+		en_movimiento[c] = true
+	var zona := {}
+	for o in origenes:
+		for dy in range(-d["rango_max"], d["rango_max"] + 1):
+			for dx in range(-d["rango_max"], d["rango_max"] + 1):
+				var dist := absi(dx) + absi(dy)
+				var c := o + Vector2i(dx, dy)
+				# Si ataca sin moverse (artillería), se muestra toda su zona aunque se cruce con el movimiento.
+				var tapada := en_movimiento.has(c) and origenes.size() > 1
+				if dist >= d["rango_min"] and dist <= d["rango_max"] and mapa.en_mapa(c) and not tapada:
+					zona[c] = true
+	var lista: Array[Vector2i] = []
+	lista.assign(zona.keys())
+	return lista
 
 
 ## Para cada enemigo visible que la unidad puede atacar este turno, elige desde qué casilla:
@@ -349,10 +395,9 @@ func _calcular_ataques(u: Unidad) -> Dictionary:
 	return resultado
 
 
-## Vista previa del daño en el panel de información, con los botones Atacar y Cancelar.
-func _mostrar_prevision(atacante: Unidad, objetivo: Unidad, desde: Vector2i, origen: String) -> void:
+## Vista previa del daño en el panel de información (al mantener presionado un enemigo).
+func _mostrar_prevision(atacante: Unidad, objetivo: Unidad, desde: Vector2i) -> void:
 	objetivo_previsto = objetivo.celda
-	_prevision = {"atacante": atacante, "objetivo": objetivo, "desde": desde, "origen": origen}
 	var est := reglas.estimar(atacante, objetivo, desde)
 	var texto := "Atacar a %s (vida %d)\n" % [objetivo.nombre_con_rango(), objetivo.vida]
 	if est["destruye"]:
@@ -370,42 +415,8 @@ func _mostrar_prevision(atacante: Unidad, objetivo: Unidad, desde: Vector2i, ori
 	var defensa: int = 0 if objetivo.es_aerea() else Datos.TERRENOS[mapa.terreno_en(objetivo.celda)]["defensa"]
 	if defensa > 0:
 		texto += "Su terreno: -%d%%" % (defensa * 10)
-	var a_la_derecha := _en_pantalla(atacante.celda).x < get_viewport_rect().size.x / 2.0
-	hud.mostrar_info(texto, a_la_derecha)
-	if origen == "seleccion":
-		resaltado.mostrar(resaltado.celdas, resaltado.color, desde, resaltado.ataque)
-	_mostrar_menu([["Atacar", _confirmar_ataque], ["Cancelar", _cancelar_prevision]], atacante.celda)
-	estado = Estado.PREVISION
-
-
-func _confirmar_ataque() -> void:
-	var p := _prevision
-	_prevision = {}
-	menu.visible = false
-	hud.ocultar_info()
-	if p.is_empty() or not is_instance_valid(p["objetivo"]):
-		_cerrar_menu()
-		return
-	if p["origen"] == "seleccion":
-		await _mover_y_atacar(p["atacante"], p["desde"], p["objetivo"])
-	else:
-		_cerrar_menu()
-		estado = Estado.MOVIENDO
-		await ejecutar_ataque(p["atacante"], p["objetivo"])
-		estado = Estado.LIBRE
-
-
-func _cancelar_prevision() -> void:
-	var p := _prevision
-	_prevision = {}
-	menu.visible = false
-	objetivo_previsto = Vector2i(-1, -1)
-	if p.is_empty():
-		_cerrar_menu()
-	elif p["origen"] == "seleccion":
-		seleccionar(p["atacante"])
-	else:
-		_elegir_ataque()
+	texto += "\nSuelta y toca al enemigo para atacar"
+	hud.mostrar_info(texto, _en_pantalla(atacante.celda).x < get_viewport_rect().size.x / 2.0)
 
 
 func _mover_y_atacar(u: Unidad, desde: Vector2i, objetivo: Unidad) -> void:
@@ -431,12 +442,14 @@ func _texto_info(u: Unidad) -> String:
 	var texto := "%s (%s)   Vida %d/%d\n" % [u.nombre_con_rango(), u.equipo, u.vida, d["vida_max"]]
 	texto += "Mov %d   Alcance %s   Fuerza %d%%   Defensa %s\n" % [u.movimiento(), rango, fuerza, "★".repeat(defensa) if defensa > 0 else "—"]
 	texto += "Gana a: %s\nPierde contra: %s" % [Datos.nombres(Datos.VENTAJAS.get(u.tipo, [])), Datos.nombres(Datos.pierde_contra(u.tipo))]
+	if u.equipo != equipo_actual:
+		texto += "\nNaranja: se mueve · Rojo: hasta donde ataca"
 	if u.equipo == equipo_actual:
 		var peligro: int = calcular_peligro(u.equipo).get(u.celda, 0)
 		if peligro > 0:
 			texto += "\n⚠ Aquí te pueden atacar %d enemigo%s" % [peligro, "s" if peligro > 1 else ""]
 	if not ataques_posibles.is_empty():
-		texto += "\nToca un enemigo en rojo para atacarlo"
+		texto += "\nToca un enemigo en rojo para atacarlo (mantén para ver detalles)"
 	return texto
 
 
@@ -514,13 +527,30 @@ func calcular_peligro(equipo: String) -> Dictionary:
 	return zona
 
 
+## Si ya no te queda nada por hacer, el botón "Terminar turno" brilla.
+var _reloj_fin := 0.0
+
+
+func _revisar_fin_de_turno(delta: float) -> void:
+	_reloj_fin -= delta
+	if _reloj_fin > 0.0:
+		return
+	_reloj_fin = 0.25
+	var sin_acciones := equipo_actual == "azul" and not turno_ia and not juego_terminado \
+		and estado == Estado.LIBRE and reglas.mapa != null
+	if sin_acciones:
+		for u in mapa.unidades_de("azul"):
+			if not u.ya_ataco and (not u.ya_se_movio or not reglas.objetivos_de(u).is_empty()):
+				if u.datos()["movimiento"] > 0 or not reglas.objetivos_de(u).is_empty():
+					sin_acciones = false
+					break
+	hud.resaltar_terminar(sin_acciones)
+
+
 func _alternar_peligro() -> void:
 	mostrar_peligro = not mostrar_peligro
 	hud.marcar_peligro(mostrar_peligro)
-	if mostrar_peligro:
-		hud.mostrar_aviso("Zona de peligro: en rojo, las casillas donde el enemigo te puede atacar en su próximo turno. Úsala para decidir si atacar o retirarte. Toca Peligro otra vez para ocultarla.")
-	else:
-		hud.mostrar_aviso("Zona de peligro oculta", 1.2)
+
 	_reloj_peligro = 0.0
 	if not mostrar_peligro:
 		mapa.mostrar_peligro({})
@@ -829,7 +859,6 @@ func _cerrar_menu() -> void:
 	objetivos_actuales.clear()
 	_celdas_apuntar.clear()
 	objetivo_previsto = Vector2i(-1, -1)
-	_prevision = {}
 	unidad_menu = null
 	hud.ocultar_info()
 	estado = Estado.LIBRE
@@ -839,28 +868,31 @@ func _abrir_menu_unidad(u: Unidad) -> void:
 	estado = Estado.MENU
 	unidad_menu = u
 	resaltado.limpiar()
-	var opciones := []
-	var objetivos := reglas.objetivos_de(u).filter(func(e): return mapa.se_ve(e.celda))
-	if not objetivos.is_empty():
-		opciones.append(["Atacar", _elegir_ataque])
-	if reglas.puede_capturar(u):
-		opciones.append(["Capturar", _accion_capturar])
-	if opciones.is_empty():
+	objetivos_actuales.assign(reglas.objetivos_de(u).filter(func(e): return mapa.se_ve(e.celda)))
+	var puede_capturar := reglas.puede_capturar(u)
+	if objetivos_actuales.is_empty() and not puede_capturar:
 		# No hay nada que elegir: la unidad termina sola, sin preguntar.
 		_accion_esperar()
 		return
+	var opciones := []
+	if not objetivos_actuales.is_empty():
+		# Los enemigos al alcance quedan marcados con su daño: tocar uno lo ataca.
+		var celdas: Array[Vector2i] = []
+		for o in objetivos_actuales:
+			celdas.append(o.celda)
+		resaltado.mostrar([], Resaltado.COLOR_MOVER, u.celda, celdas)
+		for o in objetivos_actuales:
+			var est := reglas.estimar(u, o, u.celda)
+			resaltado.etiquetas[o.celda] = "✖" if est["destruye"] else "-%d" % est["dano"]
+		resaltado.queue_redraw()
+		opciones.append(["Toca un enemigo para atacar", null])
+		estado = Estado.OBJETIVO
+	if puede_capturar:
+		opciones.append(["Capturar", _accion_capturar])
 	opciones.append(["Esperar", _accion_esperar])
 	_mostrar_menu(opciones)
-
-
-func _elegir_ataque() -> void:
-	objetivos_actuales.assign(reglas.objetivos_de(unidad_menu).filter(func(e): return mapa.se_ve(e.celda)))
-	var celdas: Array[Vector2i] = []
-	for o in objetivos_actuales:
-		celdas.append(o.celda)
-	resaltado.mostrar(celdas, Resaltado.COLOR_ENEMIGO, unidad_menu.celda)
-	estado = Estado.OBJETIVO
-	_mostrar_menu([["Toca un enemigo", null], ["Cancelar", func(): _abrir_menu_unidad(unidad_menu)]])
+	if not objetivos_actuales.is_empty():
+		estado = Estado.OBJETIVO
 
 
 func _accion_capturar() -> void:
@@ -1001,7 +1033,7 @@ func _apuntar(celdas: Array[Vector2i], instruccion: String, accion: Callable, si
 func terminar_turno() -> void:
 	if estado == Estado.MOVIENDO or turno_ia or juego_terminado:
 		return
-	if unidad_menu != null and estado != Estado.PREVISION:  # quedó a medias: se da por usada
+	if unidad_menu != null:  # quedó a medias: se da por usada
 		reglas.marcar_lista(unidad_menu)
 	_cerrar_menu()
 	deseleccionar()

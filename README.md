@@ -43,9 +43,11 @@ El número es cuántos puntos de movimiento gasta entrar a esa casilla.
 - **Curación:** +2 de vida al empezar el turno en un edificio propio.
 - **Veteranía:** cada unidad destruida da una estrella (+10 % de daño, máximo 3).
 - **Flanqueo:** +15 % de daño por cada aliado pegado al enemigo.
-- **Atacar:** al seleccionar tu unidad, los enemigos atacables tienen borde rojo y un numerito con el daño que les harías (✖ = lo destruyes). Tocar uno muestra la vista previa completa y el botón Atacar.
+- **Atacar en 2 toques:** tocas tu unidad y tocas el enemigo marcado en rojo (encima se ve el daño que le harías; ✖ = lo destruyes). Mantener presionado el enemigo muestra la vista previa completa sin atacar.
+- **Enemigos:** al tocarlos se ve en naranja a dónde se mueven y en rojo hasta dónde atacan.
+- **Botones:** mantenerlos presionados muestra qué hacen. "Terminar turno" brilla cuando ya no te queda nada por hacer.
 - **Críticos:** 10 % (+5 % por estrella) de hacer x1.5 de daño. Tres sonidos: golpe, crítico y unidad destruida.
-- **Peligro:** muestra las casillas que el enemigo puede atacar.
+- **Peligro:** muestra todas las casillas que el enemigo puede atacar.
 - **Habilidades** (Tienda), cada una con su animación: Reparación (corazón), Bombardeo (un avión suelta bombas), Marcha forzada (las unidades saltan) y Radar (ondas, solo con niebla). Cada uso sube el precio.
 - **Niebla:** negro = sin explorar, gris = explorado sin vista. Pasar por donde hay un enemigo escondido es una emboscada.
 - **Victoria:** capturar el cuartel enemigo, o dejarlo sin unidades y sin forma de comprar.

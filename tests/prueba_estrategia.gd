@@ -190,24 +190,32 @@ func _initialize() -> void:
 	main.deseleccionar()
 	revisar(mapa.ancho == 36 and mapa.alto == 20, "el mapa es de 36x20")
 
-	print("Vista previa con botón Atacar")
+	print("Ataque en dos toques y zona de ataque enemiga")
 	await preparar(["H..........h", "F..........f", "............", "............"])
 	var yo := mapa.crear_unidad("tanque", "azul", Vector2i(3, 2))
 	var r1 := mapa.crear_unidad("infanteria", "rojo", Vector2i(6, 2))
-	var r2 := mapa.crear_unidad("infanteria", "rojo", Vector2i(6, 3))
+	var r2 := mapa.crear_unidad("artilleria", "rojo", Vector2i(10, 3))
 	main.equipo_actual = "azul"
 	main.deseleccionar()
 	main.tocar_celda(yo.celda)
+	revisar(main.resaltado.etiquetas.has(r1.celda), "al tocar tu unidad, cada enemigo atacable muestra su daño")
 	main.tocar_celda(r1.celda)
-	revisar(main.estado == main.Estado.PREVISION and main.menu.visible and r1.vida == 10, "un toque: vista previa con botón Atacar")
+	while main.estado == main.Estado.MOVIENDO or yo.ya_ataco == false and is_instance_valid(r1) and r1.vida == 10:
+		await process_frame
+	revisar(not is_instance_valid(r1) or r1.vida < 10, "el segundo toque (al enemigo) ya ataca")
+	revisar(main.estado == main.Estado.LIBRE and not main.menu.visible, "sin menús ni confirmaciones")
 	main.tocar_celda(r2.celda)
-	revisar(main._prevision["objetivo"] == r2, "tocar otro enemigo cambia la vista previa")
-	main.tocar_celda(Vector2i(0, 3))
-	revisar(main.estado == main.Estado.SELECCIONADA and main.seleccionada == yo, "tocar fuera cancela y deja la unidad seleccionada")
-	main.tocar_celda(r1.celda)
-	await main._confirmar_ataque()
-	revisar(r1.vida < 10 or not is_instance_valid(r1), "el botón Atacar ataca")
-	revisar(main.estado == main.Estado.LIBRE and not main.menu.visible, "y no queda nada abierto")
+	revisar(not main.resaltado.zona_ataque.is_empty() and Vector2i(7, 3) in main.resaltado.zona_ataque,
+		"tocar un enemigo muestra su zona de ataque (artillería: 2-3 casillas)")
+	revisar("Naranja" in main.get_node("%TextoInfo").text, "y explica los colores")
+	main.deseleccionar()
+	revisar(main.hud.get_node("%BotonPeligro").tooltip_text != "", "los botones tienen su explicación")
+	main.hud._mostrar_ayuda(main.hud.get_node("%BotonPeligro"))
+	revisar(main.hud._ayuda != null and "enemigo" in main.hud._ayuda.get_child(0).text, "mantener presionado un botón muestra un globito con la ayuda")
+	for u in mapa.unidades_de("azul"):
+		reglas.marcar_lista(u)
+	await create_timer(0.4).timeout
+	revisar(main.hud._tween_terminar != null, "sin acciones pendientes, Terminar turno brilla")
 
 	print("Animaciones de habilidades")
 	await preparar(["H..........h", "F..........f", "............", "............"])
@@ -242,18 +250,6 @@ func _initialize() -> void:
 	main._usar_habilidad("marcha")
 	await create_timer(0.8).timeout
 	revisar(propia.bono_mov == 2 and main.estado == main.Estado.LIBRE, "marcha forzada con animación")
-	main.hud.mostrar_aviso("prueba")
-	await process_frame
-	await process_frame
-	main._alternar_peligro()
-	await process_frame
-	await process_frame
-	var texto_aviso := ""
-	for h in main.hud.get_children():
-		if h is PanelContainer and h.get_child_count() > 0 and h.get_child(0) is Label and "peligro" in h.get_child(0).text.to_lower():
-			texto_aviso = h.get_child(0).text
-	revisar("enemigo te puede atacar" in texto_aviso, "al tocar Peligro aparece la explicación")
-	main._alternar_peligro()
 
 	print("Partidas completas en cada dificultad (con niebla)")
 	Cinematica.activadas = false

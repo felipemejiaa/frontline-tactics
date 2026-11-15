@@ -4,6 +4,9 @@ extends Node2D
 
 const COLOR_MOVER := Color(0.25, 0.55, 1.0, 0.45)
 const COLOR_ENEMIGO := Color(1.0, 0.25, 0.25, 0.4)
+## Unidades enemigas: naranja = a dónde se mueve, rojo = hasta dónde puede atacar.
+const COLOR_MOV_ENEMIGO := Color(1.0, 0.65, 0.2, 0.38)
+const COLOR_ZONA_ATAQUE := Color(1.0, 0.15, 0.15, 0.32)
 const TILE_CURSOR := Vector2i(7, 3)
 
 var celdas: Array[Vector2i] = []
@@ -13,6 +16,8 @@ var cursor := Vector2i(-1, -1)
 var ataque: Array[Vector2i] = []
 ## Numerito sobre cada enemigo atacable con el daño que le harías: celda -> texto.
 var etiquetas := {}
+## Casillas que una unidad enemiga puede atacar pero a las que no se puede mover.
+var zona_ataque: Array[Vector2i] = []
 
 
 func mostrar(lista: Array[Vector2i], nuevo_color: Color, celda_cursor: Vector2i,
@@ -28,6 +33,7 @@ func limpiar() -> void:
 	celdas = []
 	ataque = []
 	etiquetas = {}
+	zona_ataque = []
 	cursor = Vector2i(-1, -1)
 	queue_redraw()
 
@@ -36,6 +42,10 @@ func _draw() -> void:
 	var t := Datos.TAM_CASILLA
 	for c in celdas:
 		draw_rect(Rect2(Vector2(c * t), Vector2(t, t)), color)
+	for c in zona_ataque:
+		var r := Rect2(Vector2(c * t), Vector2(t, t))
+		draw_rect(r, COLOR_ZONA_ATAQUE)
+		draw_rect(r.grow(-1.0), Color(1, 0.2, 0.2, 0.6), false, 1.0)
 	for c in ataque:
 		var r := Rect2(Vector2(c * t), Vector2(t, t))
 		draw_rect(r, Color(1, 0.2, 0.2, 0.35))

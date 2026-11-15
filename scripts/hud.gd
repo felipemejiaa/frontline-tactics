@@ -12,11 +12,36 @@ signal peligro_alternado
 const ESCENA_MENU := "res://scenes/menu_principal.tscn"
 
 
+## Explicación de cada botón de arriba (se ve manteniéndolo presionado).
+const AYUDAS := {
+	"BotonPeligro": "Marca en rojo dónde te puede atacar el enemigo en su próximo turno",
+	"BotonTienda": "Comprar unidades y habilidades",
+	"BotonMenu": "Pausa y opciones",
+	"BotonTerminar": "Pasar el turno a la máquina",
+}
+const TIEMPO_AYUDA := 0.45
+
+var _ayuda: PanelContainer
+var _boton_presionado: Button
+var _tiempo_boton := 0.0
+var _ayuda_mostrada := false
+var _tween_terminar: Tween
+
+
 func _ready() -> void:
-	%BotonTerminar.pressed.connect(func(): terminar_turno_pedido.emit())
-	%BotonMenu.pressed.connect(abrir_pausa)
-	%BotonTienda.pressed.connect(func(): tienda_pedida.emit())
-	%BotonPeligro.pressed.connect(func(): peligro_alternado.emit())
+	# Mantener presionado un botón muestra su explicación (y no lo activa).
+	for nombre in AYUDAS:
+		var b: Button = get_node("%" + nombre)
+		b.tooltip_text = AYUDAS[nombre]
+		b.button_down.connect(func():
+			_boton_presionado = b
+			_tiempo_boton = 0.0
+			_ayuda_mostrada = false)
+		b.button_up.connect(func(): _boton_presionado = null)
+	%BotonTerminar.pressed.connect(func(): if not _ayuda_mostrada: terminar_turno_pedido.emit())
+	%BotonMenu.pressed.connect(func(): if not _ayuda_mostrada: abrir_pausa())
+	%BotonTienda.pressed.connect(func(): if not _ayuda_mostrada: tienda_pedida.emit())
+	%BotonPeligro.pressed.connect(func(): if not _ayuda_mostrada: peligro_alternado.emit())
 	%BotonCinematicas.pressed.connect(_alternar_cinematicas)
 	%BotonSonido.pressed.connect(_alternar_sonido)
 	_actualizar_opciones()
@@ -149,6 +174,50 @@ func cerrar_pausa() -> void:
 
 
 ## Persona 1: llamar esto (a través de main.terminar_partida) cuando alguien gane.
+func _process(delta: float) -> void:
+	if _boton_presionado != null and not _ayuda_mostrada:
+		_tiempo_boton += delta
+		if _tiempo_boton >= TIEMPO_AYUDA:
+			_ayuda_mostrada = true
+			_mostrar_ayuda(_boton_presionado)
+
+
+## Globito pequeño debajo del botón con su explicación.
+func _mostrar_ayuda(boton: Button) -> void:
+	if _ayuda != null and is_instance_valid(_ayuda):
+		_ayuda.queue_free()
+	_ayuda = PanelContainer.new()
+	_ayuda.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var etiqueta := Label.new()
+	etiqueta.text = AYUDAS[boton.name]
+	etiqueta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	etiqueta.custom_minimum_size = Vector2(150, 0)
+	etiqueta.add_theme_font_size_override("font_size", 9)
+	_ayuda.add_child(etiqueta)
+	add_child(_ayuda)
+	_ayuda.reset_size()
+	_ayuda.position = Vector2(clampf(boton.position.x + boton.size.x / 2.0 - 85, 4, 480 - 178), boton.position.y + boton.size.y + 4)
+	var este := _ayuda
+	var tw := este.create_tween()
+	tw.tween_interval(2.0)
+	tw.tween_property(este, "modulate:a", 0.0, 0.3)
+	tw.tween_callback(este.queue_free)
+	Sonido.reproducir("seleccion", -8.0)
+
+
+## El botón "Terminar turno" brilla cuando ya no te queda nada por hacer.
+func resaltar_terminar(activo: bool) -> void:
+	var b: Button = %BotonTerminar
+	if activo and _tween_terminar == null:
+		_tween_terminar = create_tween().set_loops()
+		_tween_terminar.tween_property(b, "modulate", Color(1.4, 1.3, 0.6), 0.5)
+		_tween_terminar.tween_property(b, "modulate", Color.WHITE, 0.5)
+	elif not activo and _tween_terminar != null:
+		_tween_terminar.kill()
+		_tween_terminar = null
+		b.modulate = Color.WHITE
+
+
 ## Texto de la barra de arriba (turno, dinero, población).
 func mostrar_estado(texto: String) -> void:
 	%EtiquetaTurno.text = texto

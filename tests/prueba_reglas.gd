@@ -58,8 +58,9 @@ func _initialize() -> void:
 	var textos := []
 	for b in main.caja_menu.get_children():
 		textos.append(b.text)
-	revisar(main.estado == main.Estado.MENU and "Atacar" in textos and "Esperar" in textos,
-		"con un enemigo al lado sale el menú con Atacar: %s" % [textos])
+	revisar(main.estado == main.Estado.OBJETIVO and "Esperar" in textos and main.resaltado.ataque.has(vecino.celda)
+		and main.resaltado.etiquetas.has(vecino.celda),
+		"después de moverse, el enemigo al alcance queda marcado con su daño: %s" % [textos])
 	main._accion_esperar()
 	revisar(main.estado == main.Estado.LIBRE and mi_inf.ya_ataco, "Esperar cierra el menú y la deja usada")
 
@@ -68,16 +69,12 @@ func _initialize() -> void:
 	main.tocar_celda(mi_inf.celda)
 	revisar(main.ataques_posibles.has(vecino.celda), "al seleccionar, el enemigo atacable queda marcado")
 	revisar(main.get_node("%PanelInfo").visible, "se muestra el panel de información")
+	revisar(main.resaltado.etiquetas.has(vecino.celda), "encima del enemigo se ve el daño que le harías")
 	var vida_antes := vecino.vida
+	main._toque_largo(main.get_canvas_transform() * mapa.celda_a_pos(vecino.celda))
+	revisar(vecino.vida == vida_antes and "Harás" in main.get_node("%TextoInfo").text,
+		"mantener presionado el enemigo muestra la vista previa sin atacar")
 	main.tocar_celda(vecino.celda)
-	revisar(vecino.vida == vida_antes and main.get_node("%PanelInfo").visible and "Harás" in main.get_node("%TextoInfo").text,
-		"un toque al enemigo muestra la vista previa del daño sin atacar")
-	var boton_atacar: Button = null
-	for b in main.caja_menu.get_children():
-		if b is Button and b.text == "Atacar":
-			boton_atacar = b
-	revisar(boton_atacar != null and main.menu.visible, "aparece el botón Atacar")
-	boton_atacar.pressed.emit()
 	await create_timer(0.3).timeout
 	revisar(not is_instance_valid(vecino) or vecino.vida < vida_antes, "tocar al enemigo lo ataca directamente")
 	revisar(mi_inf.ya_ataco and main.estado == main.Estado.LIBRE and not main.menu.visible, "después del ataque no queda ningún menú abierto")
@@ -157,6 +154,7 @@ func _initialize() -> void:
 		var b := mapa.crear_unidad("tanque", "rojo", Vector2i(5, 1))
 		a.reiniciar_turno()
 		a.vida = 10
+		a.rango = 0  # sin estrellas: 10 % de críticos
 		reglas.atacar(a, b)
 		if is_instance_valid(b):
 			mapa.eliminar_unidad(b)
