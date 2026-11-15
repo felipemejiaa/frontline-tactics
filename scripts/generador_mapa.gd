@@ -2,12 +2,21 @@ class_name GeneradorMapa
 extends RefCounted
 ## Crea mapas aleatorios. Solo genera la mitad izquierda (la del jugador azul)
 ## y la copia en espejo para el rojo, así ningún bando tiene ventaja.
-## Revisa que siempre haya camino entre las bases, los cuarteles y todas las ciudades;
+##
+## Para que el mapa quede balanceado (sin zonas vacías ni zonas atiborradas),
+## la mitad se divide en una cuadrícula de zonas y en cada zona se pone
+## un grupo de obstáculos y, casi siempre, una ciudad.
+##
+## Al final revisa que haya camino entre las bases, los cuarteles y todas las ciudades;
 ## si no lo hay, vuelve a intentar.
 
-const ANCHO := 26   # debe ser par para que el espejo quede exacto
-const ALTO := 15
+const ANCHO := 30   # debe ser par para que el espejo quede exacto
+const ALTO := 18
 const MITAD := ANCHO / 2
+## Zonas de la mitad izquierda (columnas x filas). La primera columna de zonas empieza en X_ZONAS.
+const ZONAS_X := 3
+const ZONAS_Y := 4
+const X_ZONAS := 3
 
 ## Unidades con las que arranca cada bando (se ubican cerca de su base).
 const EJERCITO_INICIAL := ["infanteria", "tanque", "artilleria"]
@@ -31,42 +40,52 @@ func generar(semilla: int) -> Dictionary:
 func _intentar() -> Dictionary:
 	_llenar(".")
 
-	# Agua: un río en el centro con vados, o unos lagos.
-	if rng.randf() < 0.55:
+	# Agua: un río en el centro con vados, o unos lagos pequeños.
+	var con_rio := rng.randf() < 0.5
+	if con_rio:
 		_rio()
-	else:
-		for i in rng.randi_range(1, 2):
-			_manchon("~", rng.randi_range(3, 6), 5, MITAD - 2)
 
-	for i in rng.randi_range(3, 5):
-		_manchon("m", rng.randi_range(2, 4), 2, MITAD - 1)
-	for i in rng.randi_range(5, 8):
-		_manchon("b", rng.randi_range(2, 5), 2, MITAD - 1)
+	# Cuartel general y base del azul (cerca del borde izquierdo).
+	var hq := Vector2i(1, rng.randi_range(4, ALTO - 5))
+	var base := Vector2i(rng.randi_range(3, 4), clampi(hq.y + (3 if rng.randf() < 0.5 else -3), 1, ALTO - 2))
 
-	# Cuartel general y base del azul.
-	var hq := Vector2i(1, rng.randi_range(3, ALTO - 4))
-	var base := Vector2i(rng.randi_range(3, 4), clampi(hq.y + (2 if rng.randf() < 0.5 else -2), 1, ALTO - 2))
+	# Por zonas: un grupo de obstáculos y casi siempre una ciudad.
+	var edificios: Array[Vector2i] = [hq, base]
+	var ancho_zona := float(MITAD - 1 - X_ZONAS) / ZONAS_X
+	var alto_zona := float(ALTO) / ZONAS_Y
+	var zonas := []
+	for zx in ZONAS_X:
+		for zy in ZONAS_Y:
+			zonas.append(Rect2i(X_ZONAS + int(zx * ancho_zona), int(zy * alto_zona),
+				int(ancho_zona), int(alto_zona)))
+	# Barajar con nuestra semilla (shuffle() usaría el azar global y el mapa no se podría repetir).
+	for i in range(zonas.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp = zonas[i]
+		zonas[i] = zonas[j]
+		zonas[j] = tmp
+	var lagos := 0 if con_rio else rng.randi_range(1, 2)
+	for z in zonas:
+		var tipo := "~" if lagos > 0 else ("b" if rng.randf() < 0.6 else "m")
+		if tipo == "~":
+			lagos -= 1
+		_manchon(tipo, rng.randi_range(3, 5) if tipo != "~" else rng.randi_range(3, 5), z)
+		if rng.randf() < 0.3:
+			_manchon("b" if tipo == "m" else "m", rng.randi_range(1, 2), z)
+	for z in zonas:
+		if rng.randf() < 0.7:
+			_poner_ciudad(z, edificios)
+
 	_despejar(hq)
 	_despejar(base)
 	_poner(hq, "H")
 	_poner(base, "F")
 
-	# Ciudades neutrales (dan créditos al capturarlas).
-	var edificios: Array[Vector2i] = [hq, base]
-	var faltan := rng.randi_range(4, 6)
-	for i in 300:
-		if faltan == 0:
-			break
-		var c := Vector2i(rng.randi_range(2, MITAD - 1), rng.randi_range(0, ALTO - 1))
-		if _letra(c) != "." or not _lejos_de(c, edificios, 3):
-			continue
-		_poner(c, "c")
-		edificios.append(c)
-		faltan -= 1
-
 	# Unidades iniciales del azul: las casillas libres de llanura más cercanas a la base.
 	var celdas_azul := _casillas_libres_cerca(base, EJERCITO_INICIAL.size())
 	if celdas_azul.size() < EJERCITO_INICIAL.size():
+		return {}
+	if edificios.size() < 6:  # al menos 4 ciudades por lado
 		return {}
 
 	_espejar()
@@ -110,21 +129,22 @@ func _en_mitad(c: Vector2i) -> bool:
 
 
 ## Río vertical en la última columna de la mitad (al espejar queda de 2 de ancho),
-## con 2 o 3 vados para cruzar.
+## con 3 o 4 vados para cruzar, repartidos a lo alto del mapa.
 func _rio() -> void:
 	var x := MITAD - 1
 	for y in ALTO:
 		_poner(Vector2i(x, y), "~")
-	var vados := rng.randi_range(2, 3)
+	var vados := rng.randi_range(3, 4)
 	for i in vados:
-		var y := rng.randi_range(1, ALTO - 2)
-		_poner(Vector2i(x, y), ".")
+		var desde := int(float(i) / vados * ALTO)
+		var hasta := int(float(i + 1) / vados * ALTO) - 1
+		_poner(Vector2i(x, rng.randi_range(desde + 1, maxi(desde + 1, hasta - 1))), ".")
 
 
-## Mancha de terreno: un "caminante" aleatorio que pinta casillas de llanura.
-func _manchon(letra: String, tamano: int, x_min: int, x_max: int) -> void:
-	var c := Vector2i(rng.randi_range(x_min, x_max), rng.randi_range(0, ALTO - 1))
-	for i in tamano * 2:
+## Mancha de terreno dentro de una zona: un "caminante" aleatorio que pinta casillas de llanura.
+func _manchon(letra: String, tamano: int, zona: Rect2i) -> void:
+	var c := Vector2i(rng.randi_range(zona.position.x, zona.end.x - 1), rng.randi_range(zona.position.y, zona.end.y - 1))
+	for i in tamano * 3:
 		if _en_mitad(c) and _letra(c) == ".":
 			_poner(c, letra)
 			tamano -= 1
@@ -132,8 +152,17 @@ func _manchon(letra: String, tamano: int, x_min: int, x_max: int) -> void:
 				return
 		var paso: Vector2i = GameMap.DIRECCIONES[rng.randi_range(0, 3)]
 		var siguiente := c + paso
-		if _en_mitad(siguiente) and siguiente.x >= x_min and siguiente.x <= x_max:
+		if zona.has_point(siguiente) and _en_mitad(siguiente):
 			c = siguiente
+
+
+func _poner_ciudad(zona: Rect2i, edificios: Array[Vector2i]) -> void:
+	for i in 30:
+		var c := Vector2i(rng.randi_range(zona.position.x, zona.end.x - 1), rng.randi_range(zona.position.y, zona.end.y - 1))
+		if _en_mitad(c) and c.x < MITAD - 1 and _letra(c) == "." and _lejos_de(c, edificios, 3):
+			_poner(c, "c")
+			edificios.append(c)
+			return
 
 
 ## Deja en llanura la casilla y sus vecinas (para que los edificios no queden encerrados).
@@ -141,7 +170,7 @@ func _despejar(centro: Vector2i) -> void:
 	for dy in range(-1, 2):
 		for dx in range(-1, 2):
 			var c := centro + Vector2i(dx, dy)
-			if _en_mitad(c):
+			if _en_mitad(c) and _letra(c) != "c":
 				_poner(c, ".")
 
 
@@ -169,7 +198,7 @@ func _casillas_libres_cerca(origen: Vector2i, cuantas: int) -> Array[Vector2i]:
 	for y in ALTO:
 		for x in MITAD - 1:  # no pegadas al centro
 			var c := Vector2i(x, y)
-			if _letra(c) == ".":
+			if _letra(c) == "." and c != origen:
 				candidatas.append(c)
 	candidatas.sort_custom(func(a, b):
 		return absi(a.x - origen.x) + absi(a.y - origen.y) < absi(b.x - origen.x) + absi(b.y - origen.y))

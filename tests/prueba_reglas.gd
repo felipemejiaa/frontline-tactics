@@ -5,6 +5,10 @@ extends SceneTree
 var fallos := 0
 
 
+func Main_sonido(destruida: bool, critico: bool) -> String:
+	return load("res://scripts/main.gd").sonido_de_golpe(destruida, critico)
+
+
 func revisar(condicion: bool, mensaje: String) -> void:
 	print("  OK   " if condicion else "  FALLA ", mensaje)
 	if not condicion:
@@ -54,8 +58,9 @@ func _initialize() -> void:
 	var textos := []
 	for b in main.caja_menu.get_children():
 		textos.append(b.text)
-	revisar(main.estado == main.Estado.MENU and "Atacar" in textos and "Esperar" in textos,
-		"con un enemigo al lado sale el menú con Atacar: %s" % [textos])
+	revisar(main.estado == main.Estado.OBJETIVO and "Esperar" in textos and main.resaltado.ataque.has(vecino.celda)
+		and main.resaltado.etiquetas.has(vecino.celda),
+		"después de moverse, el enemigo al alcance queda marcado con su daño: %s" % [textos])
 	main._accion_esperar()
 	revisar(main.estado == main.Estado.LIBRE and mi_inf.ya_ataco, "Esperar cierra el menú y la deja usada")
 
@@ -64,7 +69,12 @@ func _initialize() -> void:
 	main.tocar_celda(mi_inf.celda)
 	revisar(main.ataques_posibles.has(vecino.celda), "al seleccionar, el enemigo atacable queda marcado")
 	revisar(main.get_node("%PanelInfo").visible, "se muestra el panel de información")
+	revisar(main.resaltado.etiquetas.has(vecino.celda), "encima del enemigo se ve el daño que le harías")
 	var vida_antes := vecino.vida
+	main._toque_largo(main.get_canvas_transform() * mapa.celda_a_pos(vecino.celda))
+	var t_prev: String = main.get_node("%TextoInfo").text
+	revisar(vecino.vida == vida_antes and ("le quedan" in t_prev or "destruyes" in t_prev),
+		"mantener presionado el enemigo muestra la vista previa sin atacar")
 	main.tocar_celda(vecino.celda)
 	await create_timer(0.3).timeout
 	revisar(not is_instance_valid(vecino) or vecino.vida < vida_antes, "tocar al enemigo lo ataca directamente")
@@ -99,9 +109,13 @@ func _initialize() -> void:
 	revisar(reglas.puede_capturar(capturadora), "la infantería puede capturar la ciudad")
 	reglas.capturar(capturadora)
 	revisar(mapa.dueno_en(Vector2i(3, 0)) == "neutral", "con 10 de vida no alcanza en un turno")
+	revisar(mapa.progreso_captura.has(Vector2i(3, 0)) and is_equal_approx(mapa.progreso_captura[Vector2i(3, 0)][0], 0.5),
+		"la barra de captura muestra la mitad")
 	capturadora.reiniciar_turno()
 	reglas.capturar(capturadora)
 	revisar(mapa.dueno_en(Vector2i(3, 0)) == "azul", "al segundo turno la ciudad es azul")
+	revisar(not mapa.progreso_captura.has(Vector2i(3, 0)), "al terminar, la barra desaparece")
+	revisar(mapa.ingreso_de("azul") == 3 * 500, "cada edificio da $500 (3 edificios = $1500)")
 
 	print("Compra")
 	revisar(not reglas.comprar("tanque", "azul"), "sin créditos suficientes no se puede comprar un tanque")
@@ -124,18 +138,44 @@ func _initialize() -> void:
 		var real := 10 - b.vida if is_instance_valid(b) and b.vida > 0 else -1
 		if real > 0:
 			resultados[real - estimado] = true
-			if absi(real - estimado) > Reglas.SUERTE:
-				revisar(false, "el daño (%d) no se aleja más de 1 del estimado (%d)" % [real, estimado])
+			var maximo_critico := int(ceil((estimado + Reglas.SUERTE) * Reglas.MULT_CRITICO))
+			if real < estimado - Reglas.SUERTE or real > maximo_critico:
+				revisar(false, "el daño (%d) está fuera de lo posible para el estimado (%d)" % [real, estimado])
 		if is_instance_valid(b):
 			mapa.eliminar_unidad(b)
 		await process_frame
 	revisar(resultados.size() >= 2, "el daño varía un poco entre ataques (%s)" % [resultados.keys()])
+	var criticos := [0, 0]
+	var contar := func(_a, _o, _d, critico):
+		criticos[0] += 1
+		if critico:
+			criticos[1] += 1
+	reglas.unidad_atacada.connect(contar)
+	for i in 300:
+		var b := mapa.crear_unidad("tanque", "rojo", Vector2i(5, 1))
+		a.reiniciar_turno()
+		a.vida = 10
+		a.rango = 0  # sin estrellas: 10 % de críticos
+		reglas.atacar(a, b)
+		if is_instance_valid(b):
+			mapa.eliminar_unidad(b)
+		await process_frame
+	reglas.unidad_atacada.disconnect(contar)
+	var porcentaje: float = 100.0 * criticos[1] / criticos[0]
+	revisar(porcentaje > 4 and porcentaje < 20, "hay golpes críticos de vez en cuando (%.0f%% de los golpes)" % porcentaje)
+	revisar(Main_sonido(true, false) == "destruccion" and Main_sonido(false, true) == "critico" and Main_sonido(false, false) == "golpe",
+		"tres sonidos: golpe, crítico y destrucción")
 	mapa.eliminar_unidad(a)
 	await process_frame
 
 	print("Victoria")
 	for u in mapa.unidades_de("rojo"):
 		mapa.eliminar_unidad(u)
+	await process_frame
+	reglas.revisar_victoria()
+	revisar(not main.juego_terminado, "sin unidades pero con base y dinero, el rojo todavía no pierde")
+	reglas.creditos["rojo"] = 0
+	reglas.multiplicador_ingreso["rojo"] = 0.0
 	reglas.revisar_victoria()
 	await process_frame
 	revisar(main.juego_terminado and main.get_node("%PantallaFin").visible and main.get_node("%TituloFin").text == "¡VICTORIA!", "sin unidades rojas sale la pantalla de victoria")

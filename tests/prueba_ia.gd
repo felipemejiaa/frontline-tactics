@@ -45,7 +45,7 @@ func _initialize() -> void:
 	var azules: Array[Unidad] = mapa.unidades_de("azul")
 	while mapa.unidades_de("azul").size() >= rojas_antes:
 		mapa.eliminar_unidad(mapa.unidades_de("azul")[0])
-	ia._comprar_unidad()
+	ia._comprar_unidades()
 	revisar(mapa.unidades_de("rojo").size() == rojas_antes, "con más unidades que el jugador, la IA no compra aunque tenga créditos")
 	mapa.crear_unidad("infanteria", "azul", Vector2i(0, 9))
 	mapa.crear_unidad("infanteria", "azul", Vector2i(1, 9))
@@ -53,7 +53,7 @@ func _initialize() -> void:
 	var base_roja := mapa.buscar_edificio("base", "rojo")
 	if mapa.unidad_en(base_roja) != null:
 		mapa.mover_registro(mapa.unidad_en(base_roja), Vector2i(15, 9))
-	ia._comprar_unidad()
+	ia._comprar_unidades()
 	revisar(mapa.unidades_de("rojo").size() == rojas_antes + 1, "con menos unidades que el jugador, sí compra")
 
 	print("Ataque")

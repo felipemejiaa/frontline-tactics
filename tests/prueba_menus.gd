@@ -42,15 +42,27 @@ func _initialize() -> void:
 	await tocar(centro_de(menu.get_node("%BotonVolver")))
 	revisar(not menu.ayuda.visible, "Volver cierra la ayuda")
 	await tocar(centro_de(menu.get_node("%BotonJugar")))
+	await process_frame
+	revisar(menu._panel_partida != null and menu._panel_partida.visible, "Jugar abre el panel de nueva partida")
+	var dificultad_antes := Config.dificultad
+	await tocar(centro_de(menu._boton_dificultad))
+	revisar(Config.dificultad != dificultad_antes, "el botón de dificultad cambia la dificultad")
+	Config.dificultad = "normal"
+	var empezar: Button = null
+	for b in menu._panel_partida.find_children("*", "Button", true, false):
+		if b.text == "¡Empezar!":
+			empezar = b
+	await tocar(centro_de(empezar))
 	for i in 5:
 		await process_frame
 	var main: Node = current_scene
 	revisar(main != null and main.name == "Main", "Jugar abre la partida")
+	await create_timer(1.3).timeout  # esperar a que pase el letrero "TU TURNO"
 
 	print("Partida")
 	var hud: HUD = main.hud
 	var unidad: Unidad = main.mapa.unidades_de("azul")[0]
-	var pos_unidad: Vector2 = main.mapa.position + main.mapa.celda_a_pos(unidad.celda)
+	var pos_unidad: Vector2 = main.get_canvas_transform() * main.mapa.celda_a_pos(unidad.celda)
 	await tocar(pos_unidad)
 	revisar(main.seleccionada == unidad, "tocar una unidad en la pantalla la selecciona")
 	main.deseleccionar()
@@ -66,6 +78,7 @@ func _initialize() -> void:
 	await tocar(centro_de(main.get_node("%BotonMenu")))
 	await tocar(centro_de(main.get_node("%BotonNuevoMapa")))
 	revisar(main.semilla != mapa_antes and not hud.hay_menu_abierto(), "Nuevo mapa cambia el mapa y cierra el menú")
+	await create_timer(1.3).timeout
 
 	main.terminar_partida("azul")
 	revisar(main.get_node("%PantallaFin").visible and main.get_node("%TituloFin").text == "¡VICTORIA!", "pantalla de victoria")
@@ -75,6 +88,7 @@ func _initialize() -> void:
 	await process_frame
 	await tocar(centro_de(main.get_node("%BotonJugarOtraVez")))
 	revisar(not main.juego_terminado and not hud.hay_menu_abierto(), "Jugar otra vez empieza una partida nueva")
+	await create_timer(1.3).timeout
 
 	main.terminar_partida("rojo")
 	await process_frame

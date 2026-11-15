@@ -19,7 +19,8 @@ Juego de estrategia por turnos para Android, inspirado en Advanced Wars. Hecho e
 - **Tienda** (o tocar tu base): comprar unidades. La máquina nunca tiene más de una unidad por encima de ti.
 - Toca una unidad roja: se ve en rojo hasta dónde puede llegar.
 - **Terminar turno**: juega la máquina (rojo) y luego vuelve tu turno.
-- **Menú**: pausa con Continuar, Nuevo mapa y Menú principal. En Android el botón "atrás" también abre la pausa.
+- **Ataques animados:** mini cinemática estilo Advanced Wars (tocar para saltar) o animación rápida en el mapa. Se elige en la pausa.
+- **Menú**: pausa con Continuar, Nuevo mapa, Cinemáticas Sí/No, Sonido Sí/No y Menú principal. En Android el botón "atrás" también abre la pausa.
 
 ### Terreno
 
@@ -32,15 +33,39 @@ Juego de estrategia por turnos para Android, inspirado en Advanced Wars. Hecho e
 
 El número es cuántos puntos de movimiento gasta entrar a esa casilla.
 
+## Estrategia
+
+- **Nueva partida:** se elige dificultad (Fácil, Normal, Difícil) y niebla de guerra (Sí/No).
+- **Mapa de 30×18:** se arrastra con el dedo para moverlo.
+- **Unidades:** Infantería, Tanque, Artillería, Helicóptero (vuela), Antiaérea y Torreta (solo junto a tu cuartel, no se mueve).
+- **Quién le gana a quién:** tabla de daño de Advanced Wars en `Datos.DANO_BASE`.
+- **Población:** máximo 3 unidades + 1 por cada edificio tuyo.
+- **Curación:** +2 de vida al empezar el turno en un edificio propio.
+- **Veteranía:** cada unidad destruida da una estrella (+10 % de daño, máximo 3).
+- **Flanqueo:** +15 % de daño por cada aliado pegado al enemigo.
+- **Atacar en 2 toques:** tocas tu unidad y tocas el enemigo marcado en rojo (encima se ve el daño que le harías; ✖ = lo destruyes). Mantener presionado el enemigo muestra la vista previa completa sin atacar.
+- **Enemigos:** al tocarlos se ve en naranja a dónde se mueven y en rojo hasta dónde atacan.
+- **Botones:** mantenerlos presionados muestra qué hacen. "Terminar turno" brilla cuando ya no te queda nada por hacer.
+- **Críticos:** 10 % (+5 % por estrella) de hacer x1.5 de daño. Tres sonidos: golpe, crítico y unidad destruida.
+- **Habilidades** (Tienda), cada una con su animación: Reparación (corazón), Bombardeo (un avión suelta bombas), Marcha forzada (las unidades saltan), Radar (ondas, solo con niebla) y **Bomba nuclear** ($15000, radio 3, destruye en el centro y también le pega a lo tuyo). Cada uso sube el precio.
+- **Fichas:** tocar una unidad muestra una ficha corta; mantenerla presionada muestra la completa.
+- **Niebla:** negro = sin explorar, gris = explorado sin vista. Pasar por donde hay un enemigo escondido es una emboscada.
+- **Victoria:** capturar el cuartel enemigo, o dejarlo sin unidades y sin forma de comprar.
+
 ## Estructura
 
 ```
 scenes/menu_principal.tscn  Menú de inicio (Jugar, Cómo jugar, Salir)
 scenes/main.tscn        La partida (mapa + HUD + menú de pausa + pantalla de fin)
 scripts/menu_principal.gd   Lógica del menú de inicio
-scripts/hud.gd          Barra de arriba, menú de pausa y pantalla de victoria/derrota
+scripts/hud.gd          Barra de arriba, letrero de turno, menú de pausa y pantalla de victoria/derrota
+scripts/cinematica.gd   Cinemática de combate
+scripts/efectos.gd      Chispas y explosiones (partículas)
+scripts/sonido.gd       Efectos de sonido (`Sonido.reproducir("disparo")`)
+assets/sonidos/         Sonidos generados con herramientas/generar_sonidos.py
 ui/tema.tres            Estilo de botones y paneles (se aplica a todo el juego)
-scripts/datos.gd        Datos de terrenos y unidades (precios, vida, movimiento...)
+scripts/datos.gd        Datos de terrenos, unidades, ventajas, habilidades y dificultades
+scripts/config.gd       Opciones de la partida (dificultad y niebla)
 scripts/game_map.gd     Mapa, edificios y dueños, posiciones de las unidades y cálculo de movimiento
 scripts/generador_mapa.gd  Mapas aleatorios simétricos (26×15) con ciudades
 scripts/unidad.gd       Una unidad: tipo, equipo, vida, si ya se movió
@@ -66,7 +91,8 @@ assets/kenney_tiny_battle/  Gráficos de Kenney.nl (licencia CC0)
 | IA del enemigo | Persona 2 | 🟡 Base lista (falta compra de unidades) |
 | Turnos, combate, créditos, captura y victoria | Persona 1 | ✅ Listo |
 | Menú principal, pausa y pantalla de fin | Persona 2 | ✅ Listo |
-| Sonido y exportar APK | Persona 3 | ⏳ Pendiente |
+| Animaciones y sonido | Persona 2 | ✅ Listo |
+| Exportar APK | Persona 3 | ⏳ Pendiente |
 
 ### Para la persona 1 (reglas)
 - `main.gd` emite la señal `unidad_movida(unidad)` cuando una unidad termina de moverse: ahí va el menú *Atacar / Esperar*.
@@ -92,6 +118,8 @@ godot --headless --path . --script res://tests/prueba_ia.gd
 godot --headless --path . --script res://tests/prueba_generador.gd
 godot --headless --path . --script res://tests/prueba_menus.gd
 godot --headless --path . --script res://tests/prueba_reglas.gd
+godot --headless --path . --script res://tests/prueba_animaciones.gd
+godot --headless --path . --script res://tests/prueba_estrategia.gd
 ```
 
 ## Créditos
