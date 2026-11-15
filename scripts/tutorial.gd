@@ -66,24 +66,32 @@ func preparar(main_ref: Node) -> void:
 
 
 func _construir() -> void:
+	# Letrero compacto, abajo: así no tapa los botones ni los menús.
 	_panel = PanelContainer.new()
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_panel.position = Vector2(40, 200)  # abajo: así no tapa los botones ni los menús
+	var estilo: StyleBoxFlat = _panel.get_theme_stylebox("panel").duplicate()
+	estilo.content_margin_left = 6
+	estilo.content_margin_right = 6
+	estilo.content_margin_top = 3
+	estilo.content_margin_bottom = 3
+	_panel.add_theme_stylebox_override("panel", estilo)
 	var caja := VBoxContainer.new()
-	caja.add_theme_constant_override("separation", 2)
+	caja.add_theme_constant_override("separation", 0)
 	_panel.add_child(caja)
+	var fila := HBoxContainer.new()  # "Paso X de 9" y el botón Saltar en la misma línea
+	caja.add_child(fila)
 	_contador = Label.new()
-	_contador.add_theme_font_size_override("font_size", 8)
+	_contador.add_theme_font_size_override("font_size", 7)
 	_contador.modulate = Color(0.75, 0.85, 1)
-	caja.add_child(_contador)
-	_texto = Label.new()
-	_texto.custom_minimum_size = Vector2(380, 0)
-	_texto.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_texto.add_theme_font_size_override("font_size", 10)
-	caja.add_child(_texto)
+	_contador.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fila.add_child(_contador)
 	_botones = HBoxContainer.new()
-	_botones.alignment = BoxContainer.ALIGNMENT_END
-	caja.add_child(_botones)
+	fila.add_child(_botones)
+	_texto = Label.new()
+	_texto.custom_minimum_size = Vector2(330, 0)
+	_texto.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_texto.add_theme_font_size_override("font_size", 8)
+	caja.add_child(_texto)
 	add_child(_panel)
 	_flecha = Label.new()
 	_flecha.text = "▼"
@@ -123,15 +131,22 @@ func _acomodar_abajo() -> void:
 	await get_tree().process_frame  # esperar a que el texto calcule su tamaño
 	_panel.reset_size()
 	_panel.position = Vector2((480 - _panel.size.x) / 2.0, 270 - _panel.size.y - 4)
-	main.margen_inferior = _panel.size.y + 8
-	main.hud.margen_inferior = _panel.size.y + 8
+	main.margen_inferior = _panel.size.y + 6
+	main.hud.margen_inferior = _panel.size.y + 6
 	main.camara.position = main._limitar_camara(main.camara.position)
 
 
 func _boton(texto: String, accion: Callable) -> void:
 	var b := Button.new()
 	b.text = texto
-	b.add_theme_font_size_override("font_size", 9)
+	b.add_theme_font_size_override("font_size", 7)
+	for nombre in ["normal", "hover", "pressed"]:
+		var caja: StyleBox = b.get_theme_stylebox(nombre).duplicate()
+		caja.content_margin_top = 0
+		caja.content_margin_bottom = 0
+		caja.content_margin_left = 4
+		caja.content_margin_right = 4
+		b.add_theme_stylebox_override(nombre, caja)
 	b.pressed.connect(accion)
 	_botones.add_child(b)
 

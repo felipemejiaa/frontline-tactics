@@ -1022,30 +1022,51 @@ func _construir_interfaz() -> void:
 
 ## opciones: lista de [texto, Callable, (deshabilitado)]. Un texto sin Callable es un título.
 func _mostrar_menu(opciones: Array, referencia := Vector2i(-1, -1)) -> void:
+	# Si el menú no cabe encima del espacio reservado abajo (letrero del tutorial),
+	# se vuelve a armar con letra más pequeña hasta que quepa.
+	var limite := get_viewport_rect().size.y - margen_inferior - 4.0
+	for fuente in [FUENTE_MENU, 9, 8, 7]:
+		_armar_menu(opciones, fuente)
+		if POS_MENU.y + menu.size.y <= limite:
+			break
+	# Ponerlo en el lado contrario a la unidad, para no taparla.
+	# Ponerlo en el lado contrario a la unidad, para no taparla.
+	if referencia.x < 0:
+		referencia = unidad_menu.celda if unidad_menu != null else reglas.celda_base(equipo_actual)
+	menu.position.y = POS_MENU.y
+	var a_la_derecha := not mapa.en_mapa(referencia) or _en_pantalla(referencia).x < get_viewport_rect().size.x / 2.0
+	menu.position = Vector2(get_viewport_rect().size.x - menu.size.x - POS_MENU.x, POS_MENU.y) if a_la_derecha else POS_MENU
+	menu.visible = true
+
+
+func _armar_menu(opciones: Array, fuente: int) -> void:
 	for h in caja_menu.get_children():
 		caja_menu.remove_child(h)
 		h.queue_free()
+	var pequeno := fuente < FUENTE_MENU
+	caja_menu.add_theme_constant_override("separation", 1 if pequeno else 3)
 	for o in opciones:
 		if o[1] == null:
 			var titulo := Label.new()
 			titulo.text = o[0]
-			titulo.add_theme_font_size_override("font_size", 9)
+			titulo.add_theme_font_size_override("font_size", mini(9, fuente))
 			titulo.modulate = Color(0.8, 0.85, 1)
 			caja_menu.add_child(titulo)
 			continue
 		var b := Button.new()
 		b.text = o[0]
 		b.disabled = o.size() > 2 and o[2]
-		b.add_theme_font_size_override("font_size", FUENTE_MENU)
+		b.add_theme_font_size_override("font_size", fuente)
+		if pequeno:  # botones más bajitos
+			for estilo in ["normal", "hover", "pressed", "disabled"]:
+				var caja: StyleBox = b.get_theme_stylebox(estilo).duplicate()
+				caja.content_margin_top = 1
+				caja.content_margin_bottom = 1
+				b.add_theme_stylebox_override(estilo, caja)
 		b.pressed.connect(o[1])
 		caja_menu.add_child(b)
+	menu.size = Vector2.ZERO
 	menu.reset_size()
-	# Ponerlo en el lado contrario a la unidad, para no taparla.
-	if referencia.x < 0:
-		referencia = unidad_menu.celda if unidad_menu != null else reglas.celda_base(equipo_actual)
-	var a_la_derecha := not mapa.en_mapa(referencia) or _en_pantalla(referencia).x < get_viewport_rect().size.x / 2.0
-	menu.position = Vector2(get_viewport_rect().size.x - menu.size.x - POS_MENU.x, POS_MENU.y) if a_la_derecha else POS_MENU
-	menu.visible = true
 
 
 func _cerrar_menu() -> void:
